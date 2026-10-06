@@ -1,6 +1,6 @@
 # Verification
 
-Checked 6 October 2026. The unit, Python and end-to-end tests below were run again on the published source at commit `5486ff4` (later commits change only this file and the README screenshots). The axe scan, the Content Security Policy check and the load profile were measured on commit `9157223`; `5486ff4` changes two text strings only.
+Checked 6 October 2026. The unit, Python and end-to-end tests below were run again on the published source at commit `5486ff4` (later commits change only documentation, the README screenshots, the license text and the CI workflow, not the application or its data). The axe scan, the Content Security Policy check and the load profile were measured on commit `9157223`; `5486ff4` changes two text strings only.
 
 **Live URL:** https://parallexlabs.ca/demos/surrey/
 
