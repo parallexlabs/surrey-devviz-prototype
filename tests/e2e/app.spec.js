@@ -181,7 +181,7 @@ test.describe('Surrey DevViz prototype', () => {
       await page.waitForSelector('#at-a-glance', { timeout: 15000 });
       const tallest = page.locator('#at-a-glance .summary-project');
       await expect(tallest).toHaveCount(1);
-      await expect(tallest).toHaveText('21-0313-00');
+      await expect(tallest).toHaveText('(21-0313-00)');
       await expect(page.locator('#at-a-glance')).toContainText('Tallest: 67 storeys');
     }
   });

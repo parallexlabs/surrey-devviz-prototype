@@ -69,7 +69,7 @@ export function atAGlanceItemText(item) {
 export function renderAtAGlanceItemHtml(item, escapeHtml) {
   if (item.kind === 'tallest') {
     const project = item.project
-      ? ` <span class="summary-project">${escapeHtml(item.project)}</span>`
+      ? ` <span class="summary-project">(${escapeHtml(item.project)})</span>`
       : '';
     return `Tallest: ${escapeHtml(String(item.storeys))} storeys${project}`;
   }

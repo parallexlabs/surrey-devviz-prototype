@@ -71,7 +71,7 @@ describe('formatAtAGlance', () => {
     const tallest = items.find((item) => item.kind === 'tallest');
     const html = renderAtAGlanceItemHtml(tallest, (value) => String(value));
     expect(html).toContain('Tallest: 43 storeys');
-    expect(html).toContain('<span class="summary-project">A-1</span>');
+    expect(html).toContain('<span class="summary-project">(A-1)</span>');
     expect(html).not.toContain('innerHTML');
   });
 });

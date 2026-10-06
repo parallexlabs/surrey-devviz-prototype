@@ -286,7 +286,7 @@ function buildApp() {
           <input type="checkbox" id="toggle-all-apps" aria-describedby="all-apps-hint">
           All applications
         </label>
-        <p id="all-apps-hint" class="hint">Default view shows approved showcase projects only.</p>
+        <p id="all-apps-hint" class="hint">Default view shows showcase projects at an approval stage, such as Conditional Approval.</p>
         <div id="phase-filters" class="phase-filters" hidden>
           <p id="phase-filters-label">Phase</p>
           <div id="phase-filter-group" role="group" aria-labelledby="phase-filters-label"></div>
