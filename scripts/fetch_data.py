@@ -15,8 +15,8 @@ DATA_DIR = ROOT / "public" / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 SURREY_LICENCE = (
-    "City of Surrey Open Data — Open Government Licence – British Columbia "
-    "(https://www2.gov.bc.ca/gov/content/data/open-data/open-government-licence-bc)"
+    "Contains information licensed under the Open Government License – City of Surrey. "
+    "(https://opendata-surrey.hub.arcgis.com/pages/55089a19491a4fe59a41e059fd8af708)"
 )
 OSM_LICENCE = "© OpenStreetMap contributors (ODbL)"
 

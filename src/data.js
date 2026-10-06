@@ -1,4 +1,13 @@
+import { isShowcaseProject } from './showcase.js';
+import { computeProjectHeight } from './heights.js';
+import { projectTitle } from './titles.js';
+
 const DATA_BASE = './data';
+
+export const SURREY_LICENCE_TEXT =
+  'Contains information licensed under the Open Government License – City of Surrey.';
+export const SURREY_LICENCE_URL =
+  'https://opendata-surrey.hub.arcgis.com/pages/55089a19491a4fe59a41e059fd8af708';
 
 export async function loadGeoJSON(name) {
   const res = await fetch(`${DATA_BASE}/${name}.geojson`);
@@ -33,11 +42,21 @@ export function getSkyTrainLines(skytrainFc) {
   );
 }
 
+export function enrichProjects(fc) {
+  for (const feature of fc.features) {
+    const props = feature.properties;
+    const height = computeProjectHeight(props.DESCRIPTION);
+    Object.assign(props, height);
+    props.showcase = isShowcaseProject(props);
+    props.display_title = projectTitle(props.DESCRIPTION);
+  }
+  return fc;
+}
+
 export function projectLabel(props) {
-  const no = props.PROJECT_NO || props.project_no || 'Unknown';
-  const desc = props.DESCRIPTION || '';
-  const short = desc.length > 60 ? desc.slice(0, 57) + '…' : desc;
-  return short ? `${no} — ${short}` : no;
+  const title = props.display_title || projectTitle(props.DESCRIPTION);
+  const no = props.PROJECT_NO || props.project_no || '';
+  return no ? `${title} (${no})` : title;
 }
 
 export function pilotAreaLabel(area) {
