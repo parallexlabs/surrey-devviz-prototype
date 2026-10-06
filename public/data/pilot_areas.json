@@ -1,0 +1,29 @@
+{
+  "city_centre": {
+    "bbox": [
+      -122.865019488863,
+      49.1682192796455,
+      -122.830777966064,
+      49.2082211194369
+    ],
+    "source": "City Centre Plan layer extent"
+  },
+  "fleetwood": {
+    "bbox": [
+      -122.785465895041,
+      49.151648141040496,
+      -122.771149744623,
+      49.162932323390805
+    ],
+    "source": "Town Centre Densities \u2014 Fleetwood Town Centre"
+  },
+  "campbell_heights": {
+    "bbox": [
+      -122.82,
+      49.06,
+      -122.74,
+      49.11
+    ],
+    "source": "Envelope around Campbell Heights / South Campbell Heights development cluster; OSM place boundary not available"
+  }
+}

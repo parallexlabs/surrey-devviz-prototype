@@ -1,0 +1,74 @@
+[
+  {
+    "file": "city_centre_plan.geojson",
+    "source_url": "https://services5.arcgis.com/YRpe0VKTJytZSSIB/arcgis/rest/services/City%20Centre%20Plan/FeatureServer/0",
+    "layer": "City Centre Plan",
+    "query": "where=1=1",
+    "retrieved_at": "2026-10-06T05:57:24.397365+00:00",
+    "feature_count": 573,
+    "licence": "City of Surrey Open Data \u2014 Open Government Licence \u2013 British Columbia (https://www2.gov.bc.ca/gov/content/data/open-data/open-government-licence-bc)"
+  },
+  {
+    "file": "fleetwood_town_centre.geojson",
+    "source_url": "https://services5.arcgis.com/YRpe0VKTJytZSSIB/arcgis/rest/services/Town%20Centre%20Densities/FeatureServer/0",
+    "layer": "Town Centre Densities \u2014 Fleetwood",
+    "query": "AREA_NAME='Fleetwood Town Centre'",
+    "retrieved_at": "2026-10-06T05:57:24.651663+00:00",
+    "feature_count": 2,
+    "licence": "City of Surrey Open Data \u2014 Open Government Licence \u2013 British Columbia (https://www2.gov.bc.ca/gov/content/data/open-data/open-government-licence-bc)"
+  },
+  {
+    "file": "campbell_heights.geojson",
+    "source_url": "https://overpass-api.de/api/interpreter",
+    "layer": "Campbell Heights boundary (OSM or derived)",
+    "query": "name~Campbell Heights in Surrey",
+    "retrieved_at": "2026-10-06T05:58:13.960705+00:00",
+    "feature_count": 1,
+    "licence": "Derived envelope"
+  },
+  {
+    "file": "development_projects.geojson",
+    "source_url": "https://services5.arcgis.com/YRpe0VKTJytZSSIB/arcgis/rest/services/Development%20Applications/FeatureServer/0",
+    "layer": "Development Applications",
+    "query": "STATUS IN ('Conditional Approval','Final Approval','Under Review','Initial Review') within pilot envelopes",
+    "retrieved_at": "2026-10-06T05:58:15.120384+00:00",
+    "feature_count": 184,
+    "licence": "City of Surrey Open Data \u2014 Open Government Licence \u2013 British Columbia (https://www2.gov.bc.ca/gov/content/data/open-data/open-government-licence-bc)"
+  },
+  {
+    "file": "building_footprints.geojson",
+    "source_url": "https://services5.arcgis.com/YRpe0VKTJytZSSIB/arcgis/rest/services/Building%20Footprnts/FeatureServer/0",
+    "layer": "Building Footprints",
+    "query": "within City Centre envelope",
+    "retrieved_at": "2026-10-06T05:58:20.396700+00:00",
+    "feature_count": 6877,
+    "licence": "City of Surrey Open Data \u2014 Open Government Licence \u2013 British Columbia (https://www2.gov.bc.ca/gov/content/data/open-data/open-government-licence-bc)"
+  },
+  {
+    "file": "ftda.geojson",
+    "source_url": "https://services5.arcgis.com/YRpe0VKTJytZSSIB/arcgis/rest/services/Frequent%20Transit%20Development%20Areas/FeatureServer/0",
+    "layer": "Frequent Transit Development Areas",
+    "query": "where=1=1",
+    "retrieved_at": "2026-10-06T05:58:20.651295+00:00",
+    "feature_count": 3,
+    "licence": "City of Surrey Open Data \u2014 Open Government Licence \u2013 British Columbia (https://www2.gov.bc.ca/gov/content/data/open-data/open-government-licence-bc)"
+  },
+  {
+    "file": "skytrain.geojson",
+    "source_url": "https://overpass-api.de/api/interpreter",
+    "layer": "SkyTrain lines and stations in Surrey",
+    "query": "railway=light_rail, station=light_rail|subway",
+    "retrieved_at": "2026-10-06T05:58:23.972485+00:00",
+    "feature_count": 225,
+    "licence": "\u00a9 OpenStreetMap contributors (ODbL)"
+  },
+  {
+    "file": "amenities.geojson",
+    "source_url": "https://overpass-api.de/api/interpreter",
+    "layer": "Civic facilities, libraries, recreation, parks in Surrey",
+    "query": "townhall, library, university, sports_centre, park",
+    "retrieved_at": "2026-10-06T05:59:41.725981+00:00",
+    "feature_count": 389,
+    "licence": "\u00a9 OpenStreetMap contributors (ODbL)"
+  }
+]
