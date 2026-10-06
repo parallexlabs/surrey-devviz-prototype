@@ -20,7 +20,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "maplibre-gl": "4.7.1"
+    "maplibre-gl": "^6.13.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.1",

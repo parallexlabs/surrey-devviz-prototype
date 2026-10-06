@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, statSync } from 'fs';
+import { createReadStream, existsSync, realpathSync, statSync } from 'fs';
 import { createServer } from 'http';
 import { extname, join, normalize, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist-site');
 const PREFIX = '/demos/surrey';
 const PORT = Number(process.env.PORT || 4173);
+export const LISTEN_HOST = process.env.HOST || '127.0.0.1';
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -21,18 +22,18 @@ const TYPES = {
   '.md': 'text/markdown; charset=utf-8',
 };
 
-function fileFor(urlPath) {
-  const path = decodeURIComponent(urlPath.split('?')[0]);
-  if (path !== PREFIX && !path.startsWith(`${PREFIX}/`)) return null;
+export function siteRequestTarget(urlPath) {
+  let path;
+  try {
+    path = decodeURIComponent(String(urlPath || '/').split('?')[0]);
+  } catch {
+    return { status: 400 };
+  }
+  if (path !== PREFIX && !path.startsWith(`${PREFIX}/`)) return { status: 404 };
   const rel = path === PREFIX || path === `${PREFIX}/` ? 'index.html' : path.slice(PREFIX.length + 1);
   const full = normalize(join(ROOT, rel));
-  if (full !== ROOT && !full.startsWith(`${ROOT}/`)) return null;
-  return full;
-}
-
-if (!existsSync(join(ROOT, 'index.html'))) {
-  console.error('dist-site/index.html is missing. Run npm run build:site first.');
-  process.exit(1);
+  if (full !== ROOT && !full.startsWith(`${ROOT}/`)) return { status: 404 };
+  return { status: 200, file: full };
 }
 
 const server = createServer((req, res) => {
@@ -42,8 +43,14 @@ const server = createServer((req, res) => {
     res.end();
     return;
   }
-  const file = fileFor(path);
-  if (!file || !existsSync(file) || !statSync(file).isFile()) {
+  const target = siteRequestTarget(path);
+  if (target.status === 400) {
+    res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Bad request');
+    return;
+  }
+  const file = target.file;
+  if (target.status !== 200 || !file || !existsSync(file) || !statSync(file).isFile()) {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Not found');
     return;
@@ -59,6 +66,22 @@ const server = createServer((req, res) => {
   createReadStream(file).pipe(res);
 });
 
-server.listen(PORT, () => {
-  console.log(`Site preview at http://localhost:${PORT}${PREFIX}/`);
-});
+function invokedDirectly() {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (invokedDirectly()) {
+  if (!existsSync(join(ROOT, 'index.html'))) {
+    console.error('dist-site/index.html is missing. Run npm run build:site first.');
+    process.exit(1);
+  }
+  server.listen(PORT, LISTEN_HOST, () => {
+    console.log(`Site preview at http://${LISTEN_HOST}:${PORT}${PREFIX}/`);
+  });
+}

@@ -38,11 +38,18 @@ export function featureCentroid(feature) {
   return [sx / n, sy / n];
 }
 
+function usableCoordinate(value) {
+  if (value == null) return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 export function featureReferencePoint(feature) {
   const props = feature?.properties || {};
-  const lon = Number(props.assign_lon);
-  const lat = Number(props.assign_lat);
-  if (Number.isFinite(lon) && Number.isFinite(lat) && Math.abs(lon) <= 180 && Math.abs(lat) <= 90) {
+  const lon = usableCoordinate(props.assign_lon);
+  const lat = usableCoordinate(props.assign_lat);
+  if (lon != null && lat != null && Math.abs(lon) <= 180 && Math.abs(lat) <= 90) {
     return [lon, lat];
   }
   return featureCentroid(feature);

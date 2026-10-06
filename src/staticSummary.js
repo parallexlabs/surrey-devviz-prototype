@@ -1,5 +1,5 @@
 import { NON_AFFILIATION, PAGE_TITLE, PURPOSE_LINE } from './copy.js';
-import { getSkyTrainStations, pilotAreaLabel } from './data.js';
+import { getSkyTrainStations, pilotAreaLabel, SURREY_LICENCE_TEXT, SURREY_LICENCE_URL } from './data.js';
 import { safeHttpUrl } from './detail.js';
 import { isShowcaseProject } from './showcase.js';
 import { computeAtAGlance, formatAtAGlance, atAGlanceItemText } from './summary.js';
@@ -48,7 +48,7 @@ export function renderStaticSummary({ projects, skytrain, civic }) {
     })
     .join('');
 
-  return `<article class="static-summary">
+  return `<article class="static-summary" id="main-content" tabindex="-1">
   <h1>${escapeHtml(PAGE_TITLE)}</h1>
   <p>${escapeHtml(PURPOSE_LINE)}</p>
   <h2>Counts</h2>
@@ -57,6 +57,8 @@ export function renderStaticSummary({ projects, skytrain, civic }) {
   <ul>${placeItems}</ul>
   <h2>Development projects</h2>
   <ul>${projectItems}</ul>
+  <p>${escapeHtml(SURREY_LICENCE_TEXT)} <a href="${escapeHtml(SURREY_LICENCE_URL)}">City data licence</a>.</p>
+  <p>Transit, amenities and civic coordinates: © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>, <a href="https://opendatacommons.org/licenses/odbl/1-0/">ODbL</a>.</p>
   <p>${escapeHtml(NON_AFFILIATION)}</p>
 </article>`;
 }

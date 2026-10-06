@@ -26,11 +26,15 @@ const WORD_NUMBERS = {
   thirty: 30,
   forty: 40,
   fifty: 50,
+  sixty: 60,
+  seventy: 70,
+  eighty: 80,
+  ninety: 90,
 };
 
 const ONES = 'one|two|three|four|five|six|seven|eight|nine';
 const TEENS = 'ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen';
-const TENS = 'twenty|thirty|forty|fifty';
+const TENS = 'twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety';
 const WORD_NUMBER = `(?:(?:${TENS})(?:[-\\s]+(?:${ONES}))?|(?:${TEENS})|(?:${ONES}))`;
 
 function wordToNumber(raw) {
@@ -46,7 +50,7 @@ function collectStoreys(text, pattern, parse) {
   const found = [];
   for (const match of text.matchAll(pattern)) {
     const after = text.slice(match.index + match[0].length);
-    if (/^\s+of\s+(?:underground\s+)?parking\b/i.test(after)) continue;
+    if (/^\s+(?:of\s+(?:underground\s+)?)?parking\b/i.test(after)) continue;
     const value = parse(match[1]);
     if (Number.isFinite(value) && value > 0 && value <= 120) found.push(value);
   }

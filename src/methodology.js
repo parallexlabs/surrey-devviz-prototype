@@ -48,7 +48,7 @@ export function methodologyModel(sources, buildId = 'dev') {
           'Campbell Heights is the union of the City of Surrey Campbell Heights Local Area Plan and South Campbell Heights Local Area Plan. A project is placed in a pilot area only when its representative point is inside that plan geometry. The drawn outline is simplified and does not by itself show that the whole site is inside the plan.',
           'SkyTrain lines and stations come from OpenStreetMap and may omit planned extensions.',
           '400 m and 800 m straight-line radius (not walking routes or times).',
-          'The City Centre Plan boundary is read live from the City\'s published ArcGIS layer when available.',
+          'The City Centre Plan layer uses the bundled snapshot. Its retrieval date is recorded in SOURCES.json.',
           'Existing building footprints are shown for City Centre only.',
           'This prototype is not affiliated with or endorsed by the City of Surrey and is not a regulatory record.',
         ],
@@ -57,7 +57,7 @@ export function methodologyModel(sources, buildId = 'dev') {
         heading: 'Prototype and proposed delivery',
         paragraphs: [
           `This prototype shows public exploration using MapLibre and a public-data snapshot retrieved ${retrievedOn}. It does not show City staff publishing through ArcGIS Online. In the proposed delivery, City GIS staff publish approved content through the City's ArcGIS Online and the public site presents it. 360-degree drone imagery is not included in this prototype.`,
-          'Complements, not replaces, existing City visualizations such as the City Centre Future model (2024) by Invest Surrey and the Downtown Surrey BIA, which shows proposed projects; this prototype shows approved and conditionally approved records only.',
+          'Complements, not replaces, existing City visualizations such as the City Centre Future model (2024) by Invest Surrey and the Downtown Surrey BIA, which shows proposed projects. The default view shows approved and conditionally approved records. All applications adds the other active applications in the data.',
           `Build ${buildId}. Data retrieved ${retrievedOn}.`,
         ],
       },

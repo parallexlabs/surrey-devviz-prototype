@@ -4,6 +4,23 @@ A public-data prototype that maps development applications in three City of Surr
 
 Built by [ParalleX Labs Inc.](https://parallexlabs.ca/) This prototype is **not affiliated with or endorsed by the City of Surrey** and is not a regulatory record.
 
+## Review it in one minute
+
+1. Open the demo: https://parallexlabs.ca/demos/surrey/
+2. Choose **Start the showcase**.
+3. Open one project card and its City source link.
+4. Open **Data and methodology**.
+5. Copy a share link.
+
+## Prototype boundaries
+
+- Public data only.
+- Heights are schematic.
+- This is not a City service.
+- No accessibility audit is claimed beyond the automated checks.
+
+The checks that were run, and what was not done, are in [VERIFICATION.md](VERIFICATION.md).
+
 **Live demo:** https://parallexlabs.ca/demos/surrey/
 
 ![Overview of the three pilot areas](docs/01-overview.jpg)
@@ -51,15 +68,16 @@ Open http://localhost:5173/
 
 ## Test
 
-Unit tests (Vitest):
+Unit tests include the Python 3 data tests. Those need Python 3 with Shapely (`pip install shapely`).
 
 ```bash
 npm test
 ```
 
-End-to-end tests (Playwright; needs a GPU-backed Chromium browser, not run in CI):
+End-to-end tests (Playwright; needs a GPU-backed Chromium browser, not run in CI) need a site build first:
 
 ```bash
+npm run build:site
 npx playwright install chromium
 npm run test:e2e
 ```

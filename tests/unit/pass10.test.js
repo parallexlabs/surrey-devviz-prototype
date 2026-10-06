@@ -101,10 +101,13 @@ describe('methodology delivery section', () => {
     expect(delivery.paragraphs[0]).toContain('public-data snapshot retrieved 6 October 2026');
     expect(delivery.paragraphs[0]).toContain('360-degree drone imagery is not included in this prototype.');
     expect(delivery.paragraphs[1]).toContain('City Centre Future model (2024)');
+    expect(delivery.paragraphs[1]).toContain('The default view shows approved and conditionally approved records.');
+    expect(delivery.paragraphs[1]).toContain('All applications adds the other active applications');
+    expect(delivery.paragraphs[1]).not.toMatch(/records only/);
     expect(delivery.paragraphs[2]).toBe('Build abc123. Data retrieved 6 October 2026.');
     const limits = model.sections.find((section) => section.heading === 'Limitations');
     expect(limits.paragraphs.join(' ')).toContain(
-      "read live from the City's published ArcGIS layer when available",
+      'uses the bundled snapshot',
     );
   });
 });

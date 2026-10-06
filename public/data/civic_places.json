@@ -1,6 +1,6 @@
 {
   "retrieved": "2026-10-06",
-  "coordinates_source": "OpenStreetMap (Nominatim and the OpenStreetMap features already in amenities.geojson), (c) OpenStreetMap contributors, ODbL",
+  "coordinates_source": "OpenStreetMap (Nominatim and the OpenStreetMap features already in amenities.geojson), © OpenStreetMap contributors, ODbL",
   "places": [
     {
       "id": "city-centre-arena",

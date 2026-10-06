@@ -18,8 +18,10 @@
     <!--SURREY_STATIC_SUMMARY-->
   </div>
   <noscript>
-    <style>#app .static-summary { display: none; }</style>
-    <!--SURREY_STATIC_SUMMARY-->
+    <style>
+      html, body { height: auto; overflow: auto; }
+      #app { display: block; height: auto; overflow: visible; }
+    </style>
   </noscript>
   <script type="module" src="/src/main.js"></script>
 </body>

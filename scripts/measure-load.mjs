@@ -34,6 +34,9 @@ await client.send('Network.enable');
 await client.send('Network.emulateNetworkConditions', FAST_4G);
 await client.send('Network.setCacheDisabled', { cacheDisabled: true });
 
+await page.addInitScript(() => {
+  window.__surreyTest = true;
+});
 await page.goto('http://localhost:4173/demos/surrey/', { waitUntil: 'commit' });
 await page.waitForFunction(() => {
   const list = document.querySelector('.project-list li button');

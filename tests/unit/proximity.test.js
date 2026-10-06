@@ -83,6 +83,22 @@ describe('featureReferencePoint', () => {
     expect(nearestStation(feature, [other, station]).station.properties.name).toBe('Assigned');
   });
 
+  it('falls back to the geometry when assign_lon or assign_lat is null or blank', () => {
+    const geometry = {
+      type: 'Polygon',
+      coordinates: [[[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]],
+    };
+    const centroid = featureCentroid({ geometry });
+    for (const properties of [
+      { assign_lon: null, assign_lat: 20 },
+      { assign_lon: 10, assign_lat: null },
+      { assign_lon: '', assign_lat: 20 },
+      { assign_lon: '  ', assign_lat: ' ' },
+    ]) {
+      expect(featureReferencePoint({ geometry, properties })).toEqual(centroid);
+    }
+  });
+
   it('falls back to the vertex average when the assignment point is absent', () => {
     const feature = {
       geometry: {

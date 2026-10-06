@@ -1,6 +1,9 @@
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import './styles.css';
+
+maplibregl.setWorkerUrl(workerUrl);
 import {
   loadGeoJSON,
   loadSources,
@@ -209,6 +212,7 @@ let skytrainLinesFc = EMPTY_FC;
 let skytrainStationsFc = EMPTY_FC;
 let planLive = false;
 let overlaysReady = false;
+let civicBeforeTour = true;
 
 function publishOverlays() {
   expose('__buildingsFc', buildingsFc);
@@ -338,6 +342,7 @@ function buildApp() {
       <div class="tour-panel" id="tour-panel" hidden role="dialog" aria-modal="true" aria-labelledby="tour-title" tabindex="-1">
         <h2 id="tour-title"></h2>
         <p id="tour-caption"></p>
+        <div id="tour-details" hidden></div>
         <p id="tour-closing" hidden></p>
         <div class="tour-nav">
           <button type="button" id="tour-prev">Previous</button>
@@ -694,9 +699,9 @@ async function initMap() {
     attributionControl: false,
   });
 
-  map.on('styleimagemissing', (event) => {
-    if (map.hasImage(event.id)) return;
-    map.addImage(event.id, { width: 1, height: 1, data: new Uint8Array(4) });
+  map.setMissingStyleImageResolver((id) => {
+    if (map.hasImage(id)) return;
+    map.addImage(id, { width: 1, height: 1, data: new Uint8Array(4) });
   });
 
   map.addControl(new maplibregl.NavigationControl(), 'top-left');
@@ -1267,8 +1272,10 @@ function rememberDetailReturn(projectKey, opener) {
   const key = String(projectKey);
   const el = opener instanceof HTMLElement && opener !== document.body ? opener : null;
   detailReturn = () => {
-    const fresh = document.querySelector(`.project-list button[data-id="${CSS.escape(key)}"]`);
-    if (el && document.contains(el) && !el.closest('.project-list') && !el.closest('#detail-panel')) {
+    const fresh = document.querySelector(
+      `.project-list button[data-id="${CSS.escape(key)}"], .civic-list button[data-civic-id="${CSS.escape(key)}"]`,
+    );
+    if (el && document.contains(el) && !el.closest('.project-list') && !el.closest('.civic-list') && !el.closest('#detail-panel')) {
       el.focus();
       return;
     }
@@ -1279,8 +1286,7 @@ function rememberDetailReturn(projectKey, opener) {
 
 function selectProject(id, options = {}) {
   const panel = document.getElementById('detail-panel');
-  const opening = id != null && panel.hidden;
-  const opener = opening ? document.activeElement : null;
+  const opener = document.activeElement;
   selectedId = id != null ? String(id) : null;
   if (id != null) selectedCivicId = null;
   renderProjectList();
@@ -1301,7 +1307,7 @@ function selectProject(id, options = {}) {
     return;
   }
 
-  if (opening) rememberDetailReturn(id, opener);
+  if (!options.fromTour) rememberDetailReturn(id, opener);
 
   const feature = findProject(selectedId);
   if (!feature) return;
@@ -1369,9 +1375,8 @@ function selectCivic(id, options = {}) {
   const place = (civicData?.places || []).find((item) => item.id === id);
   if (!place) return;
   const panel = document.getElementById('detail-panel');
-  const opening = panel.hidden;
-  const opener = opening ? document.activeElement : null;
-  if (opening) rememberDetailReturn(id, opener);
+  const opener = document.activeElement;
+  if (!options.fromTour) rememberDetailReturn(id, opener);
   selectedId = null;
   selectedCivicId = place.id;
   renderProjectList();
@@ -1395,7 +1400,7 @@ function selectCivic(id, options = {}) {
     if (cameraMovesInstantly()) map.jumpTo(civicCamera);
     else map.flyTo({ ...civicCamera, duration: 1500 });
   }
-  if (options.fromTour) setLocationHash({ view: currentView });
+  setLocationHash({ view: currentView || 'city_centre' });
   if (!options.fromTour) document.getElementById('close-detail').focus();
 }
 
@@ -1461,6 +1466,7 @@ function renderAbout() {
 }
 
 async function startTour() {
+  civicBeforeTour = Boolean(document.getElementById('toggle-civic')?.checked);
   beginOverlayLoad();
   tourSteps = buildTourSteps(projectsFc, skytrainFc, civicData, pilotAreasMeta);
   tourIndex = 0;
@@ -1478,9 +1484,16 @@ function endTour(restoreFocus = false) {
     closing.hidden = true;
     closing.textContent = '';
   }
+  const details = document.getElementById('tour-details');
+  if (details) {
+    details.hidden = true;
+    details.replaceChildren();
+  }
   announce('Showcase ended');
   if (restoreFocus) closeDialog(panel, document.getElementById('start-showcase'));
   else closeDialog(panel, null);
+  setOverlayChecked('toggle-civic', civicBeforeTour);
+  activatePreset('overview');
 }
 
 function stepTour(delta) {
@@ -1522,6 +1535,19 @@ function showTourStep() {
     renderAreaCard(step.areaId || null);
     if (step.preset) flyToPreset(step.preset);
     setLocationHash({ view: step.preset });
+  }
+  copyTourDetails();
+}
+
+function copyTourDetails() {
+  const details = document.getElementById('tour-details');
+  if (!details) return;
+  const panel = document.getElementById('detail-panel');
+  details.hidden = !panel || panel.hidden;
+  details.replaceChildren();
+  if (details.hidden) return;
+  for (const child of document.getElementById('detail-content').children) {
+    details.appendChild(child.cloneNode(true));
   }
 }
 
@@ -1569,27 +1595,48 @@ function beginOverlayLoad() {
   return overlaysPromise;
 }
 
+function markOverlayFailed(key) {
+  const input = document.getElementById(LAYER_TOGGLES[key]);
+  if (!input) return;
+  setOverlayChecked(input.id, false);
+  input.disabled = true;
+}
+
+function showOverlayStatus(message) {
+  const controls = document.querySelector('.map-controls');
+  if (!controls || controls.querySelector('[data-overlay-status]')) return;
+  const status = document.createElement('p');
+  status.setAttribute('role', 'status');
+  status.dataset.overlayStatus = 'true';
+  status.textContent = message;
+  controls.prepend(status);
+}
+
 async function loadDeferredOverlays() {
-  const [buildings, plan, ftda, amenities] = await Promise.all([
-    loadGeoJSON('building_footprints'),
-    loadGeoJSON('city_centre_plan'),
-    loadGeoJSON('ftda'),
-    loadGeoJSON('amenities'),
-  ]);
-  if (map?.getSource('buildings')) {
-    map.getSource('buildings').setData(buildings);
-    map.getSource('city-centre-plan').setData(plan);
-    map.getSource('ftda').setData(ftda);
-    map.getSource('amenities').setData(amenities);
+  const jobs = [
+    { key: 'buildings', name: 'building_footprints', source: 'buildings', assign: (fc) => { buildingsFc = fc; } },
+    { key: 'plan', name: 'city_centre_plan', source: 'city-centre-plan', assign: (fc) => { planFc = fc; } },
+    { key: 'ftda', name: 'ftda', source: 'ftda', assign: (fc) => { ftdaFc = fc; } },
+    { key: 'amenities', name: 'amenities', source: 'amenities', assign: (fc) => { amenitiesFc = fc; } },
+  ];
+  const results = await Promise.allSettled(jobs.map((job) => loadGeoJSON(job.name)));
+  const failed = [];
+  results.forEach((result, index) => {
+    const job = jobs[index];
+    if (result.status === 'fulfilled') {
+      job.assign(result.value);
+      if (map?.getSource(job.source)) map.getSource(job.source).setData(result.value);
+      return;
+    }
+    failed.push(job.key);
+    markOverlayFailed(job.key);
+  });
+  if (failed.length) {
+    showOverlayStatus('Optional overlays could not load. Projects, civic places and SkyTrain remain available. Reload to retry.');
   }
-  amenitiesFc = amenities;
-  buildingsFc = buildings;
-  planFc = plan;
-  ftdaFc = ftda;
   overlaysReady = true;
   planLive = false;
   publishOverlays();
-  refreshCityCentrePlan(plan);
 }
 
 async function refreshCityCentrePlan(plan) {
@@ -1610,9 +1657,23 @@ async function refreshCityCentrePlan(plan) {
   }
 }
 
-async function main() {
-  buildApp();
+function showMapUnavailable() {
+  map?.remove();
+  map = null;
+  const controls = document.querySelector('.map-controls');
+  if (controls) controls.style.display = 'none';
+  const start = document.getElementById('start-showcase');
+  if (start) start.disabled = true;
+  const mapEl = document.getElementById('map');
+  if (!mapEl) return;
+  const status = document.createElement('p');
+  status.setAttribute('role', 'status');
+  status.textContent = 'The map is unavailable. You can still browse projects and civic places in the list and open their source links.';
+  mapEl.replaceChildren(status);
+  mapEl.removeAttribute('role');
+}
 
+async function main() {
   const [projects, skytrain, sources, pilotAreas, civic] = await Promise.all([
     loadGeoJSON('development_projects'),
     loadGeoJSON('skytrain'),
@@ -1641,6 +1702,7 @@ async function main() {
   overlaysReady = false;
   publishOverlays();
   applyPilotAreaPresets(pilotAreas);
+  buildApp();
 
   populateStatusFilter();
   renderPhaseFilters();
@@ -1651,7 +1713,12 @@ async function main() {
   const openingHash = parseLocationHash(location.hash);
   if (openingHash.view) renderAreaCard(AREA_BY_PRESET[openingHash.view] || null);
   else if (!openingHash.project) renderAreaCard('city-centre');
-  await initMap();
+  try {
+    await initMap();
+  } catch (error) {
+    console.error(error);
+    showMapUnavailable();
+  }
 }
 
 main().catch((err) => {

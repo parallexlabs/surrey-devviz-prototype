@@ -4,7 +4,7 @@ This file describes the licences for data files shipped in `public/data/` and fo
 
 ## City of Surrey open data
 
-The following files contain information licensed under the **Open Government Licence – City of Surrey**:
+The following files contain information licensed under the **Open Government License – City of Surrey**:
 
 > Contains information licensed under the Open Government License – City of Surrey. (https://opendata-surrey.hub.arcgis.com/pages/55089a19491a4fe59a41e059fd8af708)
 
@@ -30,6 +30,9 @@ The following files were retrieved from the [Overpass API](https://overpass-api.
 |------|-------|
 | `skytrain.geojson` | SkyTrain lines and stations in Surrey |
 | `amenities.geojson` | Civic facilities, libraries, recreation, and parks in Surrey |
+| Coordinates in `civic_places.json` | Curated place locations from OpenStreetMap, as recorded in `coordinates_source` |
+
+The civic descriptions are prototype summaries with a source link on each record. The coordinate attribution does not imply that OpenStreetMap supplies or verifies those descriptions.
 
 Attribution: © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright).
 

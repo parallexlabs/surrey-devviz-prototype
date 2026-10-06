@@ -1,5 +1,5 @@
 import { chromium } from '@playwright/test';
-import { mkdirSync, existsSync, unlinkSync } from 'fs';
+import { mkdirSync, existsSync, unlinkSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, execSync } from 'child_process';
@@ -202,8 +202,8 @@ async function main() {
       `ffmpeg -y -i "${videoFiles}" -c:v libx264 -preset fast -crf 28 -pix_fmt yuv420p -movflags +faststart "${mp4Path}"`,
       { stdio: 'inherit' },
     );
-    const size = execSync(`stat -f%z "${mp4Path}"`, { encoding: 'utf8' }).trim();
-    console.log(`Video: ${mp4Path} (${Math.round(Number(size) / 1024 / 1024)} MB)`);
+    const size = statSync(mp4Path).size;
+    console.log(`Video: ${mp4Path} (${Math.round(size / 1024 / 1024)} MB)`);
   }
 
   console.log('Recording complete.');

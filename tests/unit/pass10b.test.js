@@ -44,6 +44,7 @@ describe('pass 10b labels', () => {
       expect(entry.licence_url).toBe('https://opendatacommons.org/licenses/odbl/1-0/');
       expect(notice).toContain(file);
     }
+    expect(notice).toContain('civic_places.json');
     expect(notice).toContain('https://www.openstreetmap.org/copyright');
     expect(notice).toContain('Only the fields the map uses are kept; contact details are removed.');
     expect(notice).toContain('Open Government License – City of Surrey');
@@ -67,7 +68,10 @@ describe('static summary links', () => {
         ],
       },
     });
-    expect(html).not.toContain('<a ');
+    expect(html).not.toContain('href="javascript:');
+    expect(html).toContain('Open Government License – City of Surrey');
+    expect(html).toContain('OpenStreetMap contributors');
+    expect(html).toContain('opendatacommons.org/licenses/odbl');
     expect(html).toContain('javascript:alert(1)');
     expect(html).not.toContain('Bad source');
   });

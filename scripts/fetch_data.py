@@ -2,6 +2,8 @@
 """Download public data for Surrey development visualization prototype."""
 
 import json
+import shutil
+import tempfile
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
@@ -9,14 +11,15 @@ from pathlib import Path
 
 try:
     from shapely import set_precision
-    from shapely.geometry import Point, Polygon, mapping, shape
-    from shapely.ops import unary_union
+    from shapely.geometry import LineString, Point, Polygon, mapping, shape
+    from shapely.ops import linemerge, unary_union
 except ImportError as exc:
     raise SystemExit("shapely is required to union the City plan polygons") from exc
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "public" / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUT_DIR = DATA_DIR
 
 SURREY_LICENCE = (
     "Contains information licensed under the Open Government License – City of Surrey. "
@@ -166,12 +169,25 @@ def arcgis_match_count(layer_url, where, envelope=None, get_json=None):
     return count
 
 
+def feature_identity(item):
+    if not isinstance(item, dict):
+        return None
+    if item.get("id") is not None:
+        return str(item.get("id"))
+    props = item.get("properties") or {}
+    for key in ("OBJECTID", "objectid", "id"):
+        if props.get(key) is not None:
+            return str(props.get(key))
+    return None
+
+
 def fetch_arcgis_geojson(layer_url, where, out_fields, envelope=None, page_size=1000, get_json=None):
     get_json = get_json or http_get
     expected = arcgis_match_count(layer_url, where, envelope, get_json)
     features = []
     offset = 0
     seen = set()
+    feature_ids = set()
     while True:
         if offset in seen:
             raise ArcGISError("ArcGIS pagination offset did not advance")
@@ -183,9 +199,19 @@ def fetch_arcgis_geojson(layer_url, where, out_fields, envelope=None, page_size=
         batch = data.get("features")
         if not isinstance(batch, list):
             raise ArcGISError("ArcGIS response has no features list")
+        for item in batch:
+            identity = feature_identity(item)
+            if identity is not None:
+                if identity in feature_ids:
+                    raise ArcGISError(f"ArcGIS returned duplicate feature ID {identity}")
+                feature_ids.add(identity)
         features.extend(batch)
+        if len(features) > expected:
+            raise ArcGISError("ArcGIS pagination exceeded returnCountOnly")
         more = bool((data.get("properties") or {}).get("exceededTransferLimit") or data.get("exceededTransferLimit"))
-        if not batch or not more:
+        if more and not batch:
+            raise ArcGISError("ArcGIS returned an empty page with exceededTransferLimit")
+        if not more:
             break
         offset += len(batch)
     if len(features) != expected:
@@ -207,8 +233,34 @@ def write_json_atomic(path, payload, indent=None):
     write_text_atomic(path, text)
 
 
+def publish_staged_files(stage_dir, data_dir):
+    stage_dir = Path(stage_dir)
+    data_dir = Path(data_dir)
+    staged = []
+    for path in stage_dir.iterdir():
+        if path.is_file():
+            tmp = data_dir / f".{path.name}.publishing"
+            shutil.copyfile(path, tmp)
+            staged.append((tmp, data_dir / path.name))
+    for tmp, dest in staged:
+        tmp.replace(dest)
+
+
+def run_staged_refresh(data_dir, worker):
+    data_dir = Path(data_dir)
+    stage = Path(tempfile.mkdtemp(prefix="surrey-refresh-"))
+    try:
+        worker(stage)
+        publish_staged_files(stage, data_dir)
+        stale = data_dir / "campbell_heights.geojson"
+        if stale.exists():
+            stale.unlink()
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
+
+
 def write_geojson(name, fc, source_url, layer, query, licence, licence_url=None):
-    path = DATA_DIR / f"{name}.geojson"
+    path = OUTPUT_DIR / f"{name}.geojson"
     write_json_atomic(path, fc)
     entry = {
         "file": name + ".geojson",
@@ -403,6 +455,12 @@ OVERPASS_ENDPOINTS = (
 )
 
 
+def validate_overpass(data):
+    if not isinstance(data, dict) or data.get("remark") or not isinstance(data.get("elements"), list):
+        raise RuntimeError("Overpass returned an error or an incomplete response")
+    return data
+
+
 def overpass_query(query):
     data = urllib.parse.urlencode({"data": query}).encode()
     last_error = None
@@ -410,7 +468,7 @@ def overpass_query(query):
         req = urllib.request.Request(url, data=data, headers={"User-Agent": "surrey-devviz-demo/0.1"})
         try:
             with urllib.request.urlopen(req, timeout=180) as resp:
-                return json.loads(resp.read().decode())
+                return validate_overpass(json.loads(resp.read().decode()))
         except Exception as exc:
             last_error = exc
             print(f"  Overpass failed ({url}): {exc}")
@@ -427,20 +485,32 @@ def coords_from_osm_geometry(geometry):
     return close_ring([[point["lon"], point["lat"]] for point in geometry])
 
 
+def merged_rings(parts):
+    if not parts:
+        return []
+    merged = linemerge([LineString(part) for part in parts])
+    lines = list(merged.geoms) if merged.geom_type == "MultiLineString" else [merged]
+    rings = []
+    for line in lines:
+        coords = [(point[0], point[1]) for point in line.coords]
+        if len(coords) < 4 or coords[0] != coords[-1]:
+            raise RuntimeError("OSM relation ring is not closed")
+        rings.append([[point[0], point[1]] for point in coords])
+    return rings
+
+
 def relation_geometry(element):
-    outers = []
-    inners = []
+    segments = {"outer": [], "inner": []}
     for member in element.get("members") or []:
+        role = member.get("role") or "outer"
+        if member.get("type") != "way" or role not in segments:
+            continue
         geometry = member.get("geometry")
-        if not geometry:
-            continue
-        ring = coords_from_osm_geometry(geometry)
-        if len(ring) < 4:
-            continue
-        if member.get("role") == "inner":
-            inners.append(ring)
-        else:
-            outers.append(ring)
+        if not geometry or len(geometry) < 2:
+            raise RuntimeError("OSM relation has an incomplete member way")
+        segments[role].append([(point["lon"], point["lat"]) for point in geometry])
+    outers = merged_rings(segments["outer"])
+    inners = merged_rings(segments["inner"])
     if not outers:
         return None
     if len(outers) == 1:
@@ -512,7 +582,7 @@ def osm_to_geojson(osm_data, area_markers=False):
     return {"type": "FeatureCollection", "features": features}
 
 
-def main():
+def refresh_data_files():
     print("Fetching pilot area boundaries…")
 
     city_centre_fc = fetch_arcgis_geojson(
@@ -581,9 +651,6 @@ def main():
         raise SystemExit("192 Street and 32 Avenue is outside the Campbell Heights union")
     if campbell_geom.covers(Point(*CAMPBELL_HEIGHTS_OUT)):
         raise SystemExit("160 Street and 32 Avenue is inside the Campbell Heights union")
-    stale = DATA_DIR / "campbell_heights.geojson"
-    if stale.exists():
-        stale.unlink()
 
     pilot_geoms = {
         "city_centre": city_centre_geom,
@@ -613,7 +680,7 @@ def main():
             "outline": rounded_geometry(outline_geometry(campbell_geom)),
         },
     }
-    write_json_atomic(DATA_DIR / "pilot_areas.json", pilot_meta)
+    write_json_atomic(OUTPUT_DIR / "pilot_areas.json", pilot_meta)
 
     print("Fetching development applications in pilot areas…")
     status_list = ",".join(f"'{s}'" for s in ACTIVE_STATUSES)
@@ -694,9 +761,10 @@ def main():
     )
 
     previous_sources = []
-    sources_path = DATA_DIR / "SOURCES.json"
-    if sources_path.exists():
-        previous_sources = json.loads(sources_path.read_text())
+    sources_path = OUTPUT_DIR / "SOURCES.json"
+    previous_path = DATA_DIR / "SOURCES.json"
+    if previous_path.exists():
+        previous_sources = json.loads(previous_path.read_text())
 
     def write_sources():
         write_json_atomic(sources_path, SOURCES, indent=2)
@@ -778,6 +846,20 @@ def main():
     print(f"\nDone. {len(SOURCES)} datasets written to {DATA_DIR}")
     print(f"  Projects: {len(projects_fc['features'])}")
     print(f"  Buildings: {len(buildings_fc['features'])}")
+
+
+def main():
+    global OUTPUT_DIR
+
+    def worker(stage):
+        global OUTPUT_DIR
+        OUTPUT_DIR = stage
+        try:
+            refresh_data_files()
+        finally:
+            OUTPUT_DIR = DATA_DIR
+
+    run_staged_refresh(DATA_DIR, worker)
 
 
 def minimize_committed_osm_layers():
