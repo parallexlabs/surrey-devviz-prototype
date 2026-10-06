@@ -3,6 +3,48 @@
 **Built:** 2026-10-06 (local only, not deployed)  
 **Prototype by:** ParalleX Labs Inc. for City of Surrey RFP 1220-030-2026-063
 
+## Pass 9: polish before publication
+
+`npm run build:site` writes `dist-site/` with base `/demos/surrey/`, `noindex`, favicon, and social tags whose image is `https://parallexlabs.ca/demos/surrey/og.png`. Nothing was deployed.
+
+### Fixes
+
+1. **One attribution control.** Before, the map drew two bars at the bottom right, one from the style and one from a second control. After, there is a single bar: MapLibre, OpenFreeMap, OpenMapTiles, and OpenStreetMap. See `01-overview.png`.
+2. **Overview framing.** Before, the first view was fitted to a box that ended south of the City Centre markers, so those markers were cut by the top edge. After, the fit includes each pilot outline and its label, with padding under the header and beside the side panels. `01-overview.png` (1600×1000) shows City Centre, Fleetwood Town Centre, and Campbell Heights fully, with the City Centre label above the marker cluster. The same fit is checked at 1366×768 and 390×844.
+3. **Project title.** Before, the close control sat on the shortened title ("consisting of"). After, the panel shows the full application clause, wrapping beside a Close button. `03-project-panel.png` shows the 21-0313-00 title through "746 residential dwelling units". Opening the panel moves focus to Close. Esc closes it and returns focus to the control that opened it.
+4. **One tour button.** Before, "Guided tour" in the top bar and "Start tour" in the right panel did the same thing. After, the only control is "Guided tour" in the map controls. Leaving the tour returns focus there.
+5. **Pilot labels.** Before, "City Centre" sat on the dense marker cluster. After, City Centre and Fleetwood Town Centre are placed north of their outlines, with a halo. Campbell Heights stays inside its outline. See `01-overview.png` and `06-campbell-heights.png`.
+6. **Street-level plan tint.** Before, the City Centre Plan fill washed the 3D view. After, the fill fades out by street zoom and a line remains. `02-city-centre-3d.png` shows the blue massing on the basemap, not an orange wash.
+
+### Checks
+
+- Unit tests: 48 passed. End-to-end: 27 passed.
+- Axe: 0 violations on overview, list, panel, tour, methodology, and phone (390×844). Each state has 2 incomplete checks. Report: `evidence/axe-report.json`.
+- Keyboard: skip link, list, panel, Esc back to the opener, and the tour arrows are covered. Focus is visible. The panel is not a focus trap.
+- 320 px width does not scroll sideways. `prefers-reduced-motion` jumps the camera instead of flying.
+- Fast 4G (165 ms latency, about 1.0 MB/s): first contentful paint 1.3 s, first meaningful paint 2.4 s (project list and map canvas). Transfer at that paint: 1.6 MB. After the deferred overlays (building footprints, City Centre Plan, amenities, FTDA): 7.1 MB across 19 requests. The local server does not compress, so those figures are uncompressed. The built script is 850 KB (gzip 232 KB) and the stylesheet is 79 KB (gzip 12 KB). `dist-site/.htaccess` turns on gzip and brotli and a long cache for hashed assets. It is not in the site root. It applies only if Apache honours it.
+- About states that the page does not use tracking or cookies and does not load third-party scripts beyond the map tiles. The map stylesheet is bundled. The City open-data licence URL returns 200.
+- Phone: the page scrolls. The map, the open panel, the controls, and the project list are in one column, so the panel does not cover the list. Body copy is 16 px. Touch targets that were checked are at least 44 px. `07-mobile.png` is the full phone page (390×7307), with the 21-0313-00 title wrapped clear of Close.
+
+### What the evidence PNGs show
+
+Opened after the recorder passed. Desktop frames are 1600×1000. The phone frame is the full page. The walkthrough is about 31 seconds and 3.6 MB.
+
+- `01-overview.png`: all three pilots on screen. City Centre markers are below the header, and the label sits above the cluster. One attribution bar. Counts read 49, 43, 2, 4, and 38 within 800 m. One "Guided tour" button.
+- `02-city-centre-3d.png`: blue massing along the SkyTrain. The plan does not tint the view. Readable names include King George Boulevard, University Drive, and Surrey Central.
+- `03-project-panel.png`: 21-0313-00. The full title wraps beside Close. Height reads "Estimated from 67 storeys stated in the application". Nearest SkyTrain is Surrey Central at 187 m.
+- `04-transit-overlay.png`: City Centre with SkyTrain, FTDA, the plan, and amenities on. Massing stays readable.
+- `05-fleetwood.png`: green massing on the Fleetwood grid. The area name is not sitting on the blocks.
+- `06-campbell-heights.png`: one outline, label inside, orange markers near 192 Street. Readable names include 32 Avenue, 16 Avenue, and Highway 99.
+- `07-mobile.png`: header, map, full project title with Close, Start here, Data and methodology, and the project list, in that order. The list does not cover the panel.
+
+### Not done
+
+- Not deployed.
+- A separate 200% browser-zoom pass was not run. The 320 px reflow check passed.
+- Chromium can still print a GPU driver notice about ReadPixels. That line is from the driver, not the page. The page test is otherwise clean.
+- The phone evidence image is the whole scrolling page, so it is much taller than one screen.
+
 ## Pass 8: pilot outlines are the outer boundary
 
 The outline layer was stroking every parcel. City Centre was 326 polygons. Campbell Heights was 52, the Campbell Heights Local Area Plan plus the South Campbell Heights Local Area Plan, so the roads between parcels read as internal lines. Fleetwood was already one polygon.

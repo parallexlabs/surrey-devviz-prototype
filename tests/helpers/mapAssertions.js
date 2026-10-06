@@ -217,6 +217,108 @@ export async function readOverviewDecoration(page) {
   });
 }
 
+export async function assertOverviewFraming(page, label = 'overview') {
+  await assertOverviewView(page, label);
+  const frame = await page.evaluate(() => {
+    const map = window.__map;
+    const areas = window.__pilotAreasMeta;
+    const rect = map.getContainer().getBoundingClientRect();
+    const point = (lng, lat) => {
+      const projected = map.project([lng, lat]);
+      return { x: projected.x, y: projected.y };
+    };
+    const corners = (bbox) => {
+      const [west, south, east, north] = bbox;
+      return [
+        point(west, south),
+        point(east, south),
+        point(west, north),
+        point(east, north),
+      ];
+    };
+    const labels = map.getLayer('pilot-areas-label')
+      ? map.queryRenderedFeatures(
+          [
+            [0, 0],
+            [rect.width, rect.height],
+          ],
+          { layers: ['pilot-areas-label'] },
+        )
+      : [];
+    const labelPoints = {};
+    for (const feature of labels) {
+      const id = feature.properties?.id;
+      if (!id || !feature.geometry?.coordinates) continue;
+      const [lng, lat] = feature.geometry.coordinates;
+      labelPoints[id] = point(lng, lat);
+    }
+    let markerTop = null;
+    if (map.getLayer('projects-markers')) {
+      const markers = map.queryRenderedFeatures(
+        [
+          [0, 0],
+          [rect.width, rect.height],
+        ],
+        { layers: ['projects-markers'] },
+      );
+      for (const feature of markers) {
+        if (feature.properties?.pilot_area !== 'city_centre') continue;
+        const [lng, lat] = feature.geometry.coordinates;
+        const projected = point(lng, lat);
+        if (markerTop == null || projected.y < markerTop) markerTop = projected.y;
+      }
+    }
+    return {
+      width: rect.width,
+      height: rect.height,
+      boxes: {
+        city_centre: corners(areas.city_centre.bbox),
+        fleetwood: corners(areas.fleetwood.bbox),
+        campbell_heights: corners(areas.campbell_heights.bbox),
+      },
+      labelPoints,
+      markerTop,
+    };
+  });
+
+  const margin = 12;
+  for (const [id, corners] of Object.entries(frame.boxes)) {
+    for (const corner of corners) {
+      if (
+        corner.x < margin ||
+        corner.y < margin ||
+        corner.x > frame.width - margin ||
+        corner.y > frame.height - margin
+      ) {
+        throw new Error(
+          `${label} ${id} corner (${Math.round(corner.x)}, ${Math.round(corner.y)}) is outside the ${Math.round(frame.width)}x${Math.round(frame.height)} map with ${margin}px padding`,
+        );
+      }
+    }
+  }
+  for (const id of ['city_centre', 'fleetwood', 'campbell_heights']) {
+    const labelPoint = frame.labelPoints[id];
+    if (!labelPoint) throw new Error(`${label} is missing the ${id} label`);
+    if (
+      labelPoint.x < margin ||
+      labelPoint.y < margin ||
+      labelPoint.x > frame.width - margin ||
+      labelPoint.y > frame.height - margin
+    ) {
+      throw new Error(
+        `${label} ${id} label (${Math.round(labelPoint.x)}, ${Math.round(labelPoint.y)}) is outside the frame`,
+      );
+    }
+  }
+  const cityLabel = frame.labelPoints.city_centre;
+  if (frame.markerTop != null && cityLabel.y >= frame.markerTop) {
+    throw new Error(
+      `${label} City Centre label sits on the markers (label y ${Math.round(cityLabel.y)}, marker top ${Math.round(frame.markerTop)})`,
+    );
+  }
+  return frame;
+}
+
 export async function assertOverviewView(page, label = 'overview') {
   await waitForCameraSettled(page);
   const view = await readMapView(page);

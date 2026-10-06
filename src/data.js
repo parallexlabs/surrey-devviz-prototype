@@ -148,15 +148,27 @@ export function pilotAreaOutlines(pilotAreas) {
   return { type: 'FeatureCollection', features };
 }
 
+function labelCoordinates(id, area) {
+  const label = area?.label;
+  const bbox = area?.bbox;
+  if (!label || label.length < 2) return null;
+  if ((id === 'city_centre' || id === 'fleetwood') && bbox?.length === 4) {
+    const [west, south, east, north] = bbox;
+    const pad = Math.max((north - south) * 0.18, 0.004);
+    return [(west + east) / 2, north + pad];
+  }
+  return [label[0], label[1]];
+}
+
 export function pilotAreaLabelPoints(pilotAreas) {
   const features = [];
   for (const [id, area] of Object.entries(pilotAreas || {})) {
-    const coordinates = area?.label;
-    if (!coordinates || coordinates.length < 2) continue;
+    const coordinates = labelCoordinates(id, area);
+    if (!coordinates) continue;
     features.push({
       type: 'Feature',
       properties: { id, name: pilotAreaLabel(id) },
-      geometry: { type: 'Point', coordinates: [coordinates[0], coordinates[1]] },
+      geometry: { type: 'Point', coordinates },
     });
   }
   return { type: 'FeatureCollection', features };

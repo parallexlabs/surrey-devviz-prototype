@@ -4,6 +4,7 @@ import { join } from 'path';
 import { PNG } from 'pngjs';
 import {
   assertCityCentreView,
+  assertOverviewFraming,
   assertOverviewView,
   assertPilotMassingView,
   assertProjectPanel,
@@ -41,14 +42,21 @@ test.describe('Surrey DevViz prototype', () => {
   });
 
   test('page loads with no console errors', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__cameraInstant = false;
+    });
     const errors = [];
     page.on('console', (msg) => {
-      if (msg.type() === 'error') errors.push(msg.text());
+      if (msg.type() !== 'error' && msg.type() !== 'warning') return;
+      if (msg.text().includes('GL Driver Message')) return;
+      errors.push(`${msg.type()}: ${msg.text()}`);
     });
+    page.on('pageerror', (err) => errors.push(err.message));
     await page.goto('./');
     await page.waitForSelector('#map', { timeout: 15000 });
     await page.waitForSelector('.project-list li button', { timeout: 15000 });
-    expect(errors.filter((e) => !e.includes('favicon'))).toHaveLength(0);
+    await page.waitForTimeout(1000);
+    expect(errors).toEqual([]);
   });
 
   test('camera presets keep the map centered in Surrey', async ({ page }) => {
@@ -73,8 +81,8 @@ test.describe('Surrey DevViz prototype', () => {
 
   test('guided tour keeps the map centered in Surrey on every step', async ({ page }) => {
     await page.goto('./');
-    await page.waitForSelector('#start-tour', { timeout: 15000 });
-    await page.locator('#start-tour').click();
+    await page.waitForSelector('#start-guided', { timeout: 15000 });
+    await page.locator('#start-guided').click();
     await assertOverviewView(page, 'tour step 1');
 
     let step = 1;
@@ -165,8 +173,8 @@ test.describe('Surrey DevViz prototype', () => {
 
   test('guided tour opens with keyboard controls', async ({ page }) => {
     await page.goto('./');
-    await page.waitForSelector('#start-tour', { timeout: 15000 });
-    await page.locator('#start-tour').click();
+    await page.waitForSelector('#start-guided', { timeout: 15000 });
+    await page.locator('#start-guided').click();
     await expect(page.locator('#tour-panel')).toBeVisible();
     await expect(page.locator('#tour-caption')).not.toBeEmpty();
     await page.locator('#tour-next').click();
@@ -215,9 +223,10 @@ test.describe('Surrey DevViz prototype', () => {
     await waitForCameraSettled(page);
     const bar = page.locator('#start-here');
     await expect(bar).toBeVisible();
-    for (const name of ['Explore projects', 'Transit and amenities', '3D City Centre', 'Guided tour']) {
+    for (const name of ['Explore projects', 'Transit and amenities', '3D City Centre']) {
       await expect(bar.getByRole('button', { name })).toBeVisible();
     }
+    await expect(page.getByRole('button', { name: 'Guided tour' })).toHaveCount(1);
 
     await page.locator('#start-explore').focus();
     await page.keyboard.press('Enter');
@@ -238,6 +247,7 @@ test.describe('Surrey DevViz prototype', () => {
     await expect(page.locator('#tour-panel')).toBeVisible();
     await page.locator('#tour-exit').click();
     await expect(page.locator('#tour-panel')).toBeHidden();
+    await expect(page.locator('#start-guided')).toBeFocused();
 
     await page.locator('#start-dismiss').focus();
     await page.keyboard.press('Enter');
@@ -334,22 +344,126 @@ test.describe('Surrey DevViz prototype', () => {
     await waitForCameraSettled(page);
     const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
     expect(fits).toBe(true);
+    await page.locator('#start-here').scrollIntoViewIfNeeded();
     const bar = await page.locator('#start-here').boundingBox();
     expect(bar.x).toBeGreaterThanOrEqual(0);
     expect(bar.x + bar.width).toBeLessThanOrEqual(391);
+    expect(bar.y).toBeGreaterThanOrEqual(0);
     expect(bar.y + bar.height).toBeLessThanOrEqual(844);
 
-    const ids = ['start-explore', 'start-transit', 'start-3d', 'start-guided', 'start-dismiss'];
+    const ids = ['start-explore', 'start-transit', 'start-3d', 'start-dismiss', 'start-guided', 'open-methodology'];
     for (const id of ids) {
-      const box = await page.locator(`#${id}`).boundingBox();
+      const target = page.locator(`#${id}`);
+      await target.scrollIntoViewIfNeeded();
+      const box = await target.boundingBox();
       expect(box.width).toBeGreaterThanOrEqual(44);
       expect(box.height).toBeGreaterThanOrEqual(44);
       expect(box.x).toBeGreaterThanOrEqual(-1);
       expect(box.x + box.width).toBeLessThanOrEqual(391);
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height).toBeLessThanOrEqual(844);
     }
 
     const preset = await page.locator('[data-preset="city_centre"]').boundingBox();
     expect(preset.height).toBeGreaterThanOrEqual(44);
     expect(preset.width).toBeGreaterThanOrEqual(44);
+  });
+
+  test('one attribution control lists the map credits', async ({ page }) => {
+    await page.goto('./');
+    const attrib = page.locator('.maplibregl-ctrl-attrib');
+    await expect(attrib).toHaveCount(1);
+    await expect(attrib).toContainText('OpenStreetMap', { timeout: 15000 });
+    const text = await page.locator('.maplibregl-ctrl-attrib').innerText();
+    expect(text).toContain('MapLibre');
+    expect(text).toContain('OpenFreeMap');
+    expect(text).toContain('OpenMapTiles');
+    expect(text).toContain('OpenStreetMap');
+  });
+
+  test('overview frames every pilot area', async ({ page }) => {
+    for (const size of [
+      { width: 1600, height: 1000 },
+      { width: 1366, height: 768 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(size);
+      await page.goto('./');
+      await page.waitForSelector('[data-preset="overview"]', { timeout: 15000 });
+      await page.click('[data-preset="overview"]');
+      await assertOverviewFraming(page, `${size.width}x${size.height}`);
+    }
+  });
+
+  test('project panel keeps the full title clear of the close button', async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await page.goto('./#project=21-0313-00');
+    await page.waitForSelector('#detail-title', { timeout: 15000 });
+    const title = page.locator('#detail-title');
+    await expect(title).toContainText('consisting of');
+    await expect(title).not.toContainText('…');
+    const overlap = await page.evaluate(() => {
+      const heading = document.getElementById('detail-title').getBoundingClientRect();
+      const button = document.getElementById('close-detail').getBoundingClientRect();
+      const overlapX = Math.min(heading.right, button.right) - Math.max(heading.left, button.left);
+      const overlapY = Math.min(heading.bottom, button.bottom) - Math.max(heading.top, button.top);
+      return overlapX > 0 && overlapY > 0;
+    });
+    expect(overlap).toBe(false);
+    await expect(page.locator('#close-detail')).toBeFocused();
+  });
+
+  test('escape closes the project panel and restores focus', async ({ page }) => {
+    await page.goto('./');
+    await page.waitForSelector('.project-list li button', { timeout: 15000 });
+    const opener = page.locator('.project-list li button').first();
+    await opener.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#detail-panel')).toBeVisible();
+    await expect(page.locator('#close-detail')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#detail-panel')).toBeHidden();
+    await expect(opener).toBeFocused();
+  });
+
+  test('reduced motion jumps the camera instead of flying', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('./');
+    await page.waitForSelector('[data-preset="city_centre"]', { timeout: 15000 });
+    await waitForCameraSettled(page);
+    await page.evaluate(() => {
+      window.__cameraInstant = false;
+      window.__flew = 0;
+      const original = window.__map.flyTo.bind(window.__map);
+      window.__map.flyTo = (...args) => {
+        window.__flew += 1;
+        return original(...args);
+      };
+    });
+    await page.click('[data-preset="city_centre"]');
+    await page.waitForTimeout(250);
+    const flew = await page.evaluate(() => window.__flew);
+    expect(flew).toBe(0);
+    const moving = await page.evaluate(() => window.__map.isMoving());
+    expect(moving).toBe(false);
+    await assertCityCentreView(page, 'reduced motion');
+  });
+
+  test('320px width reflows without horizontal scrolling', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto('./');
+    await page.waitForSelector('#map', { timeout: 15000 });
+    const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+    expect(fits).toBe(true);
+    await expect(page.locator('.what-this-is')).toBeVisible();
+    await expect(page.locator('#open-methodology')).toBeVisible();
+    await expect(page.locator('[data-preset="overview"]')).toBeVisible();
+  });
+
+  test('about states that the page does not track visitors', async ({ page }) => {
+    await page.goto('./');
+    await page.locator('#tab-about').click();
+    await expect(page.locator('#about-content')).toContainText('does not use tracking or cookies');
+    await expect(page.locator('#about-content')).toContainText('map tiles');
   });
 });

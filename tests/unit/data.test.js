@@ -163,7 +163,7 @@ describe('Campbell Heights plan polygon', () => {
 });
 
 describe('pilotAreaLabelPoints', () => {
-  it('places one label inside each official polygon', () => {
+  it('places one label per pilot, off the dense marker centres', () => {
     const areas = JSON.parse(readFileSync(join(process.cwd(), 'public/data/pilot_areas.json'), 'utf8'));
     const labels = pilotAreaLabelPoints(areas);
     expect(labels.features).toHaveLength(3);
@@ -172,11 +172,15 @@ describe('pilotAreaLabelPoints', () => {
       'City Centre',
       'Fleetwood Town Centre',
     ]);
-    for (const feature of labels.features) {
-      const area = areas[feature.properties.id];
-      expect(feature.geometry.type).toBe('Point');
-      expect(feature.geometry.coordinates).toEqual(area.label);
-      expect(geometryContains(area.geometry, area.label[0], area.label[1])).toBe(true);
+    for (const id of ['city_centre', 'fleetwood']) {
+      const feature = labels.features.find((item) => item.properties.id === id);
+      const [, , , north] = areas[id].bbox;
+      expect(feature.geometry.coordinates[1]).toBeGreaterThan(north);
     }
+    const campbell = labels.features.find((item) => item.properties.id === 'campbell_heights');
+    expect(campbell.geometry.coordinates).toEqual(areas.campbell_heights.label);
+    expect(
+      geometryContains(areas.campbell_heights.geometry, campbell.geometry.coordinates[0], campbell.geometry.coordinates[1]),
+    ).toBe(true);
   });
 });

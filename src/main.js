@@ -1,4 +1,5 @@
 import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import './styles.css';
 import {
   loadGeoJSON,
@@ -20,14 +21,12 @@ import {
 } from './proximity.js';
 import { isShowcaseProject, underReviewLabel } from './showcase.js';
 import { HEIGHT_LEGEND } from './heights.js';
-import { projectTitle, projectSubtitle } from './titles.js';
+import { projectTitle, projectPanelTitle, projectSubtitle } from './titles.js';
 import { computeAtAGlance, formatAtAGlance } from './summary.js';
 import { buildTourSteps, tourStepCamera } from './tour.js';
 import { RINGS_EXPLANATION, STATUS_SOURCE } from './copy.js';
 import { buildLocationHash, parseLocationHash } from './hashView.js';
 import { methodologyModel } from './methodology.js';
-
-const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const CAMERA_PRESETS = {
   overview: { center: [-122.8, 49.1], zoom: 11.2, pitch: 0, bearing: 0 },
@@ -53,7 +52,42 @@ function applyPilotAreaPresets(pilotAreas) {
 }
 
 function cameraMovesInstantly(options = {}) {
-  return prefersReducedMotion || options.instant || window.__cameraInstant === true;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return reduce || options.instant || window.__cameraInstant === true;
+}
+
+function overviewPadding() {
+  const narrow = window.innerWidth <= 768;
+  if (narrow) return { top: 36, right: 18, bottom: 28, left: 16 };
+  const controls = document.querySelector('.map-controls');
+  const right = controls ? Math.ceil(controls.getBoundingClientRect().width) + 28 : 268;
+  return { top: 48, right, bottom: 36, left: 28 };
+}
+
+function overviewBounds() {
+  let west = SURREY_EXTENT.lonMin;
+  let south = SURREY_EXTENT.latMin;
+  let east = SURREY_EXTENT.lonMax;
+  let north = SURREY_EXTENT.latMax;
+  for (const area of Object.values(pilotAreasMeta || {})) {
+    const bbox = area?.bbox;
+    if (!bbox || bbox.length !== 4) continue;
+    west = Math.min(west, bbox[0]);
+    south = Math.min(south, bbox[1]);
+    east = Math.max(east, bbox[2]);
+    north = Math.max(north, bbox[3]);
+  }
+  for (const feature of pilotAreaLabelPoints(pilotAreasMeta).features) {
+    const [lon, lat] = feature.geometry.coordinates;
+    west = Math.min(west, lon);
+    south = Math.min(south, lat);
+    east = Math.max(east, lon);
+    north = Math.max(north, lat);
+  }
+  return [
+    [west, south],
+    [east, north],
+  ];
 }
 
 function campbellHeightsCamera() {
@@ -85,13 +119,11 @@ function presetCamera(name) {
 
 function overviewCamera() {
   if (!map?.cameraForBounds) return CAMERA_PRESETS.overview;
-  const fitted = map.cameraForBounds(
-    [
-      [SURREY_EXTENT.lonMin, SURREY_EXTENT.latMin],
-      [SURREY_EXTENT.lonMax, SURREY_EXTENT.latMax],
-    ],
-    { padding: 16, bearing: 0, pitch: 0 },
-  );
+  const fitted = map.cameraForBounds(overviewBounds(), {
+    padding: overviewPadding(),
+    bearing: 0,
+    pitch: 0,
+  });
   return fitted ? { ...fitted, bearing: 0, pitch: 0 } : CAMERA_PRESETS.overview;
 }
 
@@ -118,6 +150,9 @@ let tourIndex = -1;
 let atAGlance = null;
 let applyingHash = false;
 let currentView = null;
+let detailReturn = null;
+let overlaysPromise = null;
+const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 
 const DEFAULT_PAINT = {
   'fill-extrusion-color': [
@@ -161,11 +196,14 @@ function buildApp() {
   const app = document.getElementById('app');
   const startHidden = startHereDismissed() ? ' hidden' : '';
   app.innerHTML = `
-    <header class="app-header" role="banner">
-      <div class="brand">
-        <h1>Surrey Development Visualization</h1>
-        <span class="subtitle">Public-data prototype by ParalleX Labs Inc.</span>
-      </div>
+    <div class="chrome">
+      <header class="app-header" role="banner">
+        <div class="brand">
+          <h1>Surrey Development Visualization</h1>
+          <p class="subtitle">Public-data prototype by ParalleX Labs Inc.</p>
+          <p class="what-this-is">A map of public development applications in three Surrey pilot areas.</p>
+        </div>
+      </header>
       <button type="button" id="open-methodology" class="methodology-open">Data and methodology</button>
       <div id="start-here" class="start-here"${startHidden}>
         <h2 id="start-here-title" class="start-here-title">Start here</h2>
@@ -173,11 +211,10 @@ function buildApp() {
           <button type="button" id="start-explore">Explore projects</button>
           <button type="button" id="start-transit">Transit and amenities</button>
           <button type="button" id="start-3d">3D City Centre</button>
-          <button type="button" id="start-guided">Guided tour</button>
           <button type="button" id="start-dismiss">Dismiss</button>
         </div>
       </div>
-    </header>
+    </div>
     <aside class="sidebar" id="sidebar" aria-label="Project list and information">
       <div class="sidebar-tabs" role="tablist">
         <button role="tab" id="tab-projects" aria-selected="true" aria-controls="panel-projects">Projects</button>
@@ -218,7 +255,7 @@ function buildApp() {
     <main class="map-area" id="main-content">
       <div id="map" role="application" aria-label="Interactive 3D map of Surrey development projects"></div>
       <div class="map-controls" aria-label="Map controls">
-        <button type="button" id="start-tour" class="tour-start">Start tour</button>
+        <button type="button" id="start-guided" class="tour-start">Guided tour</button>
         <h2>View</h2>
         <div class="camera-presets" role="group" aria-label="Camera presets">
           <button type="button" data-preset="overview">Surrey</button>
@@ -239,7 +276,7 @@ function buildApp() {
         </ul>
         <p class="rings-legend">${escapeHtml(RINGS_EXPLANATION)}</p>
       </div>
-      <div class="tour-panel" id="tour-panel" hidden role="dialog" aria-modal="true" aria-labelledby="tour-title">
+      <div class="tour-panel" id="tour-panel" hidden role="dialog" aria-modal="true" aria-labelledby="tour-title" tabindex="-1">
         <h2 id="tour-title"></h2>
         <p id="tour-caption"></p>
         <div class="tour-nav">
@@ -255,8 +292,11 @@ function buildApp() {
         </div>
         <div id="methodology-content"></div>
       </div>
-      <div class="detail-panel" id="detail-panel" hidden aria-live="polite">
-        <button class="close-btn" id="close-detail" aria-label="Close project details">×</button>
+      <div class="detail-panel" id="detail-panel" hidden role="dialog" aria-labelledby="detail-title">
+        <div class="detail-toolbar">
+          <h2 id="detail-title"></h2>
+          <button class="close-btn" id="close-detail" aria-label="Close project details">Close</button>
+        </div>
         <div id="detail-content"></div>
       </div>
     </main>
@@ -273,7 +313,9 @@ function buildApp() {
   setupTourControls();
   setupStartHere();
   setupMethodology();
-  document.getElementById('close-detail').addEventListener('click', () => selectProject(null));
+  document.getElementById('close-detail').addEventListener('click', () => {
+    selectProject(null, { restoreFocus: true });
+  });
   document.getElementById('toggle-all-apps').addEventListener('change', (e) => {
     showAllApplications = e.target.checked;
     if (!showAllApplications) document.getElementById('filter-status').value = '';
@@ -321,7 +363,7 @@ function setupOverlayToggles() {
   const toggles = {
     'toggle-skytrain': ['skytrain-lines', 'skytrain-stations'],
     'toggle-ftda': ['ftda-fill'],
-    'toggle-plan': ['city-centre-plan-fill'],
+    'toggle-plan': ['city-centre-plan-fill', 'city-centre-plan-line'],
     'toggle-amenities': ['amenities-points'],
     'toggle-buildings': ['buildings-fill', 'buildings-extrusion'],
   };
@@ -336,17 +378,25 @@ function setupOverlayToggles() {
 }
 
 function setupTourControls() {
-  document.getElementById('start-tour').addEventListener('click', () => startTour());
+  document.getElementById('start-guided').addEventListener('click', () => startTour());
   document.getElementById('tour-prev').addEventListener('click', () => stepTour(-1));
   document.getElementById('tour-next').addEventListener('click', () => stepTour(1));
-  document.getElementById('tour-exit').addEventListener('click', () => endTour());
+  document.getElementById('tour-exit').addEventListener('click', () => endTour(true));
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !document.getElementById('methodology-drawer').hidden) {
-      closeMethodology();
+    if (e.key === 'Escape') {
+      if (!document.getElementById('methodology-drawer').hidden) {
+        closeMethodology();
+        return;
+      }
+      if (!document.getElementById('detail-panel').hidden) {
+        e.preventDefault();
+        selectProject(null, { restoreFocus: true });
+        return;
+      }
+      if (tourIndex >= 0) endTour(true);
       return;
     }
     if (tourIndex < 0) return;
-    if (e.key === 'Escape') endTour();
     if (e.key === 'ArrowRight') stepTour(1);
     if (e.key === 'ArrowLeft') stepTour(-1);
   });
@@ -371,7 +421,6 @@ function setupStartHere() {
     activatePreset('city_centre');
   });
   document.getElementById('start-3d').addEventListener('click', () => activatePreset('city_centre'));
-  document.getElementById('start-guided').addEventListener('click', () => startTour());
   document.getElementById('start-dismiss').addEventListener('click', dismissStartHere);
   document.getElementById('start-here').addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -466,29 +515,94 @@ function cameraForHash() {
   return CAMERA_PRESETS.overview;
 }
 
-function initMap() {
+function guardNullComparisons(node) {
+  if (Array.isArray(node)) {
+    const [op, left, right] = node;
+    if (
+      (op === '<' || op === '<=' || op === '>' || op === '>=') &&
+      Array.isArray(left) &&
+      left[0] === 'get' &&
+      typeof right === 'number'
+    ) {
+      return ['case', ['==', ['typeof', ['get', left[1]]], 'number'], node, false];
+    }
+    return node.map(guardNullComparisons);
+  }
+  if (node && typeof node === 'object') {
+    for (const key of Object.keys(node)) node[key] = guardNullComparisons(node[key]);
+  }
+  return node;
+}
+
+async function loadBasemapStyle() {
+  const response = await fetch('https://tiles.openfreemap.org/styles/liberty');
+  if (!response.ok) throw new Error(`Basemap style failed: ${response.status}`);
+  const style = await response.json();
+  guardNullComparisons(style);
+  for (const layer of style.layers || []) {
+    const field = layer.layout?.['text-field'];
+    if (Array.isArray(field) && field[0] === 'coalesce' && field.at(-1) !== '') field.push('');
+  }
+  const buildings = style.layers?.find((layer) => layer.id === 'building-3d');
+  if (buildings?.paint) {
+    buildings.paint['fill-extrusion-height'] = ['coalesce', ['get', 'render_height'], 0];
+    buildings.paint['fill-extrusion-base'] = ['coalesce', ['get', 'render_min_height'], 0];
+  }
+  return style;
+}
+
+async function initMap() {
   const initial = cameraForHash();
+  const style = await loadBasemapStyle();
   map = new maplibregl.Map({
     container: 'map',
-    style: 'https://tiles.openfreemap.org/styles/liberty',
+    style,
     center: initial.center,
     zoom: initial.zoom,
     pitch: initial.pitch,
     bearing: initial.bearing || 0,
     antialias: true,
-    preserveDrawingBuffer: true,
+    preserveDrawingBuffer: window.__cameraInstant === true,
+    attributionControl: false,
+  });
+
+  map.on('styleimagemissing', (event) => {
+    if (map.hasImage(event.id)) return;
+    map.addImage(event.id, { width: 1, height: 1, data: new Uint8Array(4) });
   });
 
   map.addControl(new maplibregl.NavigationControl(), 'top-left');
-  map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+  map.addControl(
+    new maplibregl.AttributionControl({
+      compact: false,
+      customAttribution: '<a href="https://maplibre.org/" target="_blank" rel="noopener">MapLibre</a>',
+    }),
+    'bottom-right',
+  );
   window.__map = map;
+
+  let lastMapSize = '';
+  map.on('resize', () => {
+    const size = `${map.getContainer().clientWidth}x${map.getContainer().clientHeight}`;
+    if (size === lastMapSize) return;
+    lastMapSize = size;
+    if (!map.isStyleLoaded()) return;
+    if (selectedId) return;
+    if (currentView && currentView !== 'overview') return;
+    flyToPreset('overview', { instant: true });
+  });
 
   map.on('load', () => {
     map.resize();
     addSourcesAndLayers();
     const parsed = parseLocationHash(location.hash);
     if (parsed.view || parsed.project) applyLocationHash();
-    else flyToPreset('overview', { instant: true });
+    else {
+      currentView = 'overview';
+      flyToPreset('overview', { instant: true });
+    }
+    map.once('idle', () => beginOverlayLoad());
+    map.triggerRepaint();
     const selectFromMap = (e) => {
       if (e.features?.length) {
         selectProject(e.features[0].properties.OBJECTID ?? e.features[0].properties.PROJECT_NO);
@@ -525,7 +639,21 @@ function addSourcesAndLayers() {
     id: 'city-centre-plan-fill',
     type: 'fill',
     source: 'city-centre-plan',
-    paint: { 'fill-color': '#6b9fd4', 'fill-opacity': 0.15 },
+    paint: {
+      'fill-color': '#6b9fd4',
+      'fill-opacity': ['interpolate', ['linear'], ['zoom'], 11, 0.08, 13.5, 0.04, 14.5, 0],
+    },
+  });
+
+  map.addLayer({
+    id: 'city-centre-plan-line',
+    type: 'line',
+    source: 'city-centre-plan',
+    paint: {
+      'line-color': '#1e4d8c',
+      'line-width': ['interpolate', ['linear'], ['zoom'], 13, 0.4, 16, 1.25],
+      'line-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 14.2, 0.55, 16, 0.7],
+    },
   });
 
   map.addLayer({
@@ -574,7 +702,7 @@ function addSourcesAndLayers() {
     source: 'projects',
     paint: {
       ...DEFAULT_PAINT,
-      'fill-extrusion-height': ['get', 'height_m'],
+      'fill-extrusion-height': ['coalesce', ['get', 'height_m'], 0],
       'fill-extrusion-base': 0,
       'fill-extrusion-opacity': 0.8,
     },
@@ -586,7 +714,7 @@ function addSourcesAndLayers() {
     source: 'project-highlight',
     paint: {
       'fill-extrusion-color': '#ffcc00',
-      'fill-extrusion-height': ['get', 'height_m'],
+      'fill-extrusion-height': ['coalesce', ['get', 'height_m'], 0],
       'fill-extrusion-base': 0,
       'fill-extrusion-opacity': 0.95,
     },
@@ -656,13 +784,27 @@ function addSourcesAndLayers() {
       'text-field': ['get', 'name'],
       'text-font': ['Noto Sans Bold'],
       'text-size': 14,
+      'text-anchor': [
+        'match',
+        ['get', 'id'],
+        'campbell_heights',
+        'center',
+        'bottom',
+      ],
+      'text-offset': [
+        'match',
+        ['get', 'id'],
+        'campbell_heights',
+        ['literal', [0, 0]],
+        ['literal', [0, -0.35]],
+      ],
       'text-allow-overlap': true,
       'text-ignore-placement': true,
     },
     paint: {
       'text-color': '#163a6b',
       'text-halo-color': '#ffffff',
-      'text-halo-width': 2,
+      'text-halo-width': 3,
     },
   });
 
@@ -824,17 +966,42 @@ function findProject(id) {
   );
 }
 
+function rememberDetailReturn(projectKey, opener) {
+  const key = String(projectKey);
+  const el = opener instanceof HTMLElement && opener !== document.body ? opener : null;
+  detailReturn = () => {
+    const fresh = document.querySelector(`.project-list button[data-id="${CSS.escape(key)}"]`);
+    if (el && document.contains(el) && !el.closest('.project-list') && !el.closest('#detail-panel')) {
+      el.focus();
+      return;
+    }
+    if (fresh) fresh.focus();
+    else if (el && document.contains(el)) el.focus();
+  };
+}
+
 function selectProject(id, options = {}) {
+  const panel = document.getElementById('detail-panel');
+  const opening = id != null && panel.hidden;
+  const opener = opening ? document.activeElement : null;
   selectedId = id != null ? String(id) : null;
   renderProjectList();
 
   if (id === null) {
-    document.getElementById('detail-panel').hidden = true;
+    panel.hidden = true;
+    document.getElementById('app').classList.remove('detail-open');
     map?.getSource('proximity-rings')?.setData({ type: 'FeatureCollection', features: [] });
     setProjectHighlight(null);
     if (!options.skipHash) setLocationHash({ view: currentView });
+    if (options.restoreFocus && detailReturn) {
+      const restore = detailReturn;
+      detailReturn = null;
+      restore();
+    }
     return;
   }
+
+  if (opening) rememberDetailReturn(id, opener);
 
   const feature = findProject(selectedId);
   if (!feature) return;
@@ -844,7 +1011,8 @@ function selectProject(id, options = {}) {
   const center = featureCentroid(feature);
   if (!options.skipHash) setLocationHash({ project: p.PROJECT_NO });
 
-  document.getElementById('detail-panel').hidden = false;
+  panel.hidden = false;
+  document.getElementById('app').classList.add('detail-open');
   setProjectHighlight(feature);
 
   const applyProjectMapView = () => {
@@ -877,8 +1045,8 @@ function selectProject(id, options = {}) {
     proximityHtml = `<div class="proximity">No SkyTrain station found in data.${ringsHtml}</div>`;
   }
 
+  document.getElementById('detail-title').textContent = plain(projectPanelTitle(p.DESCRIPTION));
   document.getElementById('detail-content').innerHTML = `
-    <h2>${escapeHtml(p.display_title || projectTitle(p.DESCRIPTION))}</h2>
     <p class="project-no-detail">${escapeHtml(projectSubtitle(p))}</p>
     <dl>
       <dt>Status</dt><dd>${escapeHtml(p.STATUS || 'Not provided')}<span class="status-source">${escapeHtml(STATUS_SOURCE)}</span></dd>
@@ -892,6 +1060,7 @@ function selectProject(id, options = {}) {
       ${p.APPLICATION_DOCUMENTS_WEBLINK ? `<dt>Documents</dt><dd><a href="${escapeAttr(p.APPLICATION_DOCUMENTS_WEBLINK)}" target="_blank" rel="noopener">View documents</a></dd>` : ''}
     </dl>
   `;
+  document.getElementById('close-detail').focus();
 }
 
 function renderAtAGlance() {
@@ -938,23 +1107,29 @@ function renderAbout() {
     <p>Public-data prototype by <strong>ParalleX Labs Inc.</strong> for City of Surrey RFP 1220-030-2026-063.</p>
     <p>${escapeHtml(SURREY_LICENCE_TEXT)} <a href="${escapeAttr(SURREY_LICENCE_URL)}" target="_blank" rel="noopener">City of Surrey Open Data licence</a>.</p>
     <p>This prototype is not affiliated with or endorsed by the City of Surrey.</p>
+    <p>This page does not use tracking or cookies. It does not load third-party scripts beyond the map tiles.</p>
     <p>Data: City of Surrey Open Data and OpenStreetMap contributors. Estimated heights use stated storeys × 3.2 m; other massing is illustrative.</p>
     <h3>Data sources (${projectsFc.features.length} applications)</h3>
     ${licenceHtml}
   `;
 }
 
-function startTour() {
+async function startTour() {
+  await beginOverlayLoad();
   tourSteps = buildTourSteps(projectsFc, window.__skytrainFc, amenitiesFc, pilotAreasMeta);
   tourIndex = 0;
   showTourStep();
+  if (document.getElementById('detail-panel').hidden) {
+    document.getElementById('tour-panel').focus();
+  }
 }
 
-function endTour() {
+function endTour(restoreFocus = false) {
   tourIndex = -1;
   const panel = document.getElementById('tour-panel');
   panel.hidden = true;
   announce('Tour ended');
+  if (restoreFocus) document.getElementById('start-guided').focus();
 }
 
 function stepTour(delta) {
@@ -969,8 +1144,8 @@ function showTourStep() {
   const step = tourSteps[tourIndex];
   const panel = document.getElementById('tour-panel');
   panel.hidden = false;
-  document.getElementById('tour-title').textContent = step.title;
-  document.getElementById('tour-caption').textContent = step.caption;
+  document.getElementById('tour-title').textContent = plain(step.title);
+  document.getElementById('tour-caption').textContent = plain(step.caption);
   document.getElementById('tour-prev').disabled = tourIndex === 0;
   document.getElementById('tour-next').disabled = tourIndex === tourSteps.length - 1;
   announce(`Tour step ${tourIndex + 1} of ${tourSteps.length}: ${step.title}. ${step.caption}`);
@@ -988,9 +1163,9 @@ function showTourStep() {
 
   const customCamera = tourStepCamera(step, pilotAreasMeta, projectsFc);
   if (customCamera) {
-    flyToPreset(null, { camera: customCamera, instant: prefersReducedMotion });
+    flyToPreset(null, { camera: customCamera });
   } else if (step.preset) {
-    flyToPreset(step.preset, { instant: prefersReducedMotion });
+    flyToPreset(step.preset);
   }
 
   if (step.focusId) selectProject(step.focusId);
@@ -1009,9 +1184,13 @@ function announce(message) {
   live.textContent = message;
 }
 
+function plain(value) {
+  return String(value ?? '').replaceAll('\u2014', '-');
+}
+
 function escapeHtml(s) {
   const d = document.createElement('div');
-  d.textContent = s;
+  d.textContent = plain(s);
   return d.innerHTML;
 }
 
@@ -1019,38 +1198,60 @@ function escapeAttr(s) {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
+function beginOverlayLoad() {
+  if (!overlaysPromise) overlaysPromise = loadDeferredOverlays();
+  return overlaysPromise;
+}
+
+async function loadDeferredOverlays() {
+  const [buildings, plan, ftda, amenities] = await Promise.all([
+    loadGeoJSON('building_footprints'),
+    loadGeoJSON('city_centre_plan'),
+    loadGeoJSON('ftda'),
+    loadGeoJSON('amenities'),
+  ]);
+  if (map?.getSource('buildings')) {
+    map.getSource('buildings').setData(buildings);
+    map.getSource('city-centre-plan').setData(plan);
+    map.getSource('ftda').setData(ftda);
+    map.getSource('amenities').setData(amenities);
+  }
+  amenitiesFc = amenities;
+  window.__buildingsFc = buildings;
+  window.__planFc = plan;
+  window.__ftdaFc = ftda;
+  window.__amenitiesFc = amenities;
+  window.__overlaysReady = true;
+}
+
 async function main() {
   buildApp();
 
-  const [projects, buildings, plan, ftda, skytrain, amenities, sources, pilotAreas] =
-    await Promise.all([
-      loadGeoJSON('development_projects'),
-      loadGeoJSON('building_footprints'),
-      loadGeoJSON('city_centre_plan'),
-      loadGeoJSON('ftda'),
-      loadGeoJSON('skytrain'),
-      loadGeoJSON('amenities'),
-      loadSources(),
-      loadPilotAreas(),
-    ]);
+  const [projects, skytrain, sources, pilotAreas] = await Promise.all([
+    loadGeoJSON('development_projects'),
+    loadGeoJSON('skytrain'),
+    loadSources(),
+    loadPilotAreas(),
+  ]);
 
   projectsFc = enrichProjects(projects);
-  amenitiesFc = amenities;
+  amenitiesFc = EMPTY_FC;
   pilotAreasMeta = pilotAreas;
   stations = getSkyTrainStations(skytrain);
   sourcesMeta = sources;
 
-  window.__buildingsFc = buildings;
-  window.__planFc = plan;
-  window.__ftdaFc = ftda;
+  window.__buildingsFc = EMPTY_FC;
+  window.__planFc = EMPTY_FC;
+  window.__ftdaFc = EMPTY_FC;
   window.__skytrainFc = skytrain;
   window.__skytrainLinesFc = {
     type: 'FeatureCollection',
     features: skytrain.features.filter((f) => f.geometry?.type === 'LineString'),
   };
   window.__skytrainStationsFc = { type: 'FeatureCollection', features: stations };
-  window.__amenitiesFc = amenities;
+  window.__amenitiesFc = EMPTY_FC;
   window.__pilotAreasMeta = pilotAreas;
+  window.__overlaysReady = false;
   applyPilotAreaPresets(pilotAreas);
 
   populateStatusFilter();
@@ -1059,7 +1260,7 @@ async function main() {
   renderAtAGlance();
   renderAbout();
   renderMethodology();
-  initMap();
+  await initMap();
 }
 
 main().catch((err) => {

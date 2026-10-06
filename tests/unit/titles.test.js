@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { describe, it, expect } from 'vitest';
-import { projectTitle, projectSubtitle } from '../../src/titles.js';
+import { projectTitle, projectPanelTitle, projectSubtitle } from '../../src/titles.js';
 
 const projects = JSON.parse(
   readFileSync(join(process.cwd(), 'public/data/development_projects.geojson'), 'utf8'),
@@ -48,6 +48,16 @@ describe('projectTitle', () => {
     expect(
       projectTitle('Development Permit to permit the development of a 45-storey mixed-use tower.'),
     ).toBe('A 45-storey mixed-use tower');
+  });
+});
+
+describe('projectPanelTitle', () => {
+  it('keeps the full application clause without an ellipsis', () => {
+    const title = projectPanelTitle(description('21-0313-00'));
+    expect(title.startsWith('A 67-storey mixed-use building consisting of')).toBe(true);
+    expect(title).toContain('746 residential dwelling units');
+    expect(title).not.toContain('…');
+    expect(title.length).toBeGreaterThan(projectTitle(description('21-0313-00')).length);
   });
 });
 

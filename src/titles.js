@@ -20,17 +20,28 @@ function shorten(text) {
   return `${text.slice(0, TITLE_LIMIT - 1).trim()}…`;
 }
 
+function titleClause(description) {
+  const text = normalizeDescription(description);
+  if (!text) return '';
+  const permitted =
+    clauseAfter(text, 'to permit the development of') || clauseAfter(text, 'to permit');
+  const clause = permitted || text.split(/[;.]/)[0].trim();
+  return asSentence(clause);
+}
+
+/**
+ * Full title for the project panel. The list uses the shortened form.
+ */
+export function projectPanelTitle(description) {
+  return titleClause(description) || 'Application';
+}
+
 /**
  * Title from the application's own words.
  * Prefers the clause after "to permit the development of", then "to permit".
  */
 export function projectTitle(description) {
-  const text = normalizeDescription(description);
-  if (!text) return 'Application';
-  const permitted =
-    clauseAfter(text, 'to permit the development of') || clauseAfter(text, 'to permit');
-  const clause = permitted || text.split(/[;.]/)[0].trim();
-  return shorten(asSentence(clause)) || 'Application';
+  return shorten(projectPanelTitle(description)) || 'Application';
 }
 
 export function projectSubtitle(properties) {

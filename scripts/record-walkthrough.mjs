@@ -90,6 +90,7 @@ async function main() {
 
   await page.goto('http://localhost:4173/demos/surrey/', { waitUntil: 'networkidle' });
   await page.waitForSelector('.project-list li button', { timeout: 20000 });
+  await page.waitForFunction(() => window.__overlaysReady === true, { timeout: 20000 });
   await waitForCameraSettled(page);
 
   const screenshots = [
@@ -167,7 +168,7 @@ async function main() {
   await page.waitForSelector('.project-list li button', { timeout: 15000 });
   await selectCityCentreProject(page);
   await assertProjectPanel(page, '07-mobile');
-  await page.screenshot({ path: mobileShot, fullPage: false });
+  await page.screenshot({ path: mobileShot, fullPage: true });
   console.log('Screenshot: 07-mobile.png');
 
   await context.close();
