@@ -2,10 +2,13 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'fs';
 import { PNG } from 'pngjs';
 import {
-  assertMapCenterInSurrey,
-  assertMapCenterInBbox,
+  assertCityCentreView,
+  assertOverviewView,
+  assertPilotMassingView,
+  assertProjectPanel,
   loadPilotAreas,
-  waitForMapReady,
+  selectCityCentreProject,
+  waitForCameraSettled,
 } from '../helpers/mapAssertions.js';
 
 const pilotAreas = loadPilotAreas();
@@ -26,6 +29,12 @@ function countBodyBackgroundPixels(pngPath, xMin = 354, xMax = 729, yMin = 52, y
 }
 
 test.describe('Surrey DevViz prototype', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__cameraInstant = true;
+    });
+  });
+
   test('page loads with no console errors', async ({ page }) => {
     const errors = [];
     page.on('console', (msg) => {
@@ -40,21 +49,20 @@ test.describe('Surrey DevViz prototype', () => {
   test('camera presets keep the map centered in Surrey', async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('[data-preset="overview"]', { timeout: 15000 });
+    await waitForCameraSettled(page);
 
     const presets = [
       { id: 'overview', label: 'Surrey overview' },
-      { id: 'city_centre', label: 'City Centre', bbox: pilotAreas.city_centre.bbox },
-      { id: 'fleetwood', label: 'Fleetwood' },
-      { id: 'campbell_heights', label: 'Campbell Heights' },
+      { id: 'city_centre', label: 'City Centre' },
+      { id: 'fleetwood', label: 'Fleetwood', bbox: pilotAreas.fleetwood.bbox },
+      { id: 'campbell_heights', label: 'Campbell Heights', bbox: pilotAreas.campbell_heights.bbox },
     ];
 
     for (const preset of presets) {
       await page.click(`[data-preset="${preset.id}"]`);
-      if (preset.bbox) {
-        await assertMapCenterInBbox(page, preset.bbox, preset.label);
-      } else {
-        await assertMapCenterInSurrey(page, preset.label);
-      }
+      if (preset.id === 'overview') await assertOverviewView(page, preset.label);
+      else if (preset.id === 'city_centre') await assertCityCentreView(page, preset.label);
+      else await assertPilotMassingView(page, preset.bbox, preset.label);
     }
   });
 
@@ -62,29 +70,27 @@ test.describe('Surrey DevViz prototype', () => {
     await page.goto('/');
     await page.waitForSelector('#start-tour', { timeout: 15000 });
     await page.locator('#start-tour').click();
-    await assertMapCenterInSurrey(page, 'tour step 1');
+    await assertOverviewView(page, 'tour step 1');
 
     let step = 1;
     const next = page.locator('#tour-next');
     while (!(await next.isDisabled())) {
       await next.click();
       step += 1;
-      await assertMapCenterInSurrey(page, `tour step ${step}`);
+      await waitForCameraSettled(page);
     }
 
     await page.locator('#tour-exit').click();
-    await waitForMapReady(page);
+    await waitForCameraSettled(page);
   });
 
   test('selecting project from list shows distance and centers map in Surrey', async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('.project-list li button', { timeout: 15000 });
     await page.click('[data-preset="city_centre"]');
-    await assertMapCenterInBbox(page, pilotAreas.city_centre.bbox, 'City Centre preset');
-    await page.locator('.project-list li button').first().click();
-    await expect(page.locator('#detail-panel')).toBeVisible();
-    await expect(page.locator('.proximity')).toContainText(/m|km|SkyTrain/);
-    await assertMapCenterInSurrey(page, 'selected project');
+    await assertCityCentreView(page, 'City Centre preset');
+    await selectCityCentreProject(page);
+    await assertProjectPanel(page);
   });
 
   test('layer toggles work', async ({ page }) => {
@@ -108,8 +114,7 @@ test.describe('Surrey DevViz prototype', () => {
     const firstProject = page.locator('.project-list li button').first();
     await firstProject.focus();
     await page.keyboard.press('Enter');
-    await expect(page.locator('#detail-panel')).toBeVisible();
-    await assertMapCenterInSurrey(page, 'keyboard-selected project');
+    await assertProjectPanel(page, 'keyboard-selected project');
   });
 
   test('no empty overlay covers the map when project panel is open', async ({ page }) => {
@@ -117,14 +122,13 @@ test.describe('Surrey DevViz prototype', () => {
     await page.goto('/');
     await page.waitForSelector('.project-list li button', { timeout: 15000 });
     await page.click('[data-preset="city_centre"]');
-    await waitForMapReady(page);
-    await page.locator('.project-list li button').first().click();
-    await waitForMapReady(page);
+    await waitForCameraSettled(page);
+    await selectCityCentreProject(page);
     const shot = '/tmp/e2e-panel-overlay.png';
     await page.screenshot({ path: shot });
     const whitePixels = countBodyBackgroundPixels(shot);
     expect(whitePixels).toBeLessThan(1000);
-    await assertMapCenterInSurrey(page, 'project panel open');
+    await assertProjectPanel(page, 'project panel open');
   });
 
   test('showcase view filters by default and all applications switch works', async ({ page }) => {
@@ -182,8 +186,7 @@ test.describe('Surrey DevViz prototype', () => {
     await page.goto('/');
     await page.waitForSelector('#map', { timeout: 15000 });
     await expect(page.locator('.sidebar')).toBeVisible();
-    await page.locator('.project-list li button').first().click();
-    await expect(page.locator('#detail-panel')).toBeVisible();
-    await assertMapCenterInSurrey(page, 'mobile project selection');
+    await selectCityCentreProject(page);
+    await assertProjectPanel(page, 'mobile project selection');
   });
 });

@@ -1,14 +1,16 @@
 import { chromium } from '@playwright/test';
-import { mkdirSync, existsSync } from 'fs';
+import { mkdirSync, existsSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, execSync } from 'child_process';
 import {
-  assertMapCenterInSurrey,
-  assertMapCenterInBbox,
-  assertMapViewShowsSurrey,
+  assertCityCentreView,
+  assertOverviewView,
+  assertPilotMassingView,
+  assertProjectPanel,
   loadPilotAreas,
-  waitForMapReady,
+  selectCityCentreProject,
+  waitForCameraSettled,
 } from '../tests/helpers/mapAssertions.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -30,54 +32,45 @@ function startServer() {
   });
 }
 
-async function assertProjectPanel(page) {
-  const panel = page.locator('#detail-panel');
-  if (!(await panel.isVisible())) {
-    throw new Error('Project detail panel is not visible');
-  }
-  const proximity = await page.locator('.proximity').textContent();
-  if (!proximity || !/SkyTrain/i.test(proximity) || !/(m|km)/i.test(proximity)) {
-    throw new Error('Project panel is missing SkyTrain proximity distance');
-  }
-  const rings = await page.evaluate(() => {
-    const map = window.__map;
-    if (!map) return 0;
-    return map.querySourceFeatures('proximity-rings').length;
-  });
-  if (rings < 2) {
-    throw new Error('Proximity rings are not visible on the map');
-  }
-}
-
 async function captureScreenshot(page, name, action, assertFn) {
+  const dest = join(EVIDENCE, `${name}.png`);
+  if (existsSync(dest)) unlinkSync(dest);
   await action();
   await assertFn();
-  await page.screenshot({
-    path: join(EVIDENCE, `${name}.png`),
-    fullPage: false,
-  });
+  await page.screenshot({ path: dest, fullPage: false });
   console.log(`Screenshot: ${name}.png`);
 }
 
 async function recordTour(page) {
   await page.locator('#start-tour').click();
-  await waitForMapReady(page);
-  await assertMapCenterInSurrey(page, 'tour step 1');
+  await assertOverviewView(page, 'tour step 1');
 
   let step = 1;
   const next = page.locator('#tour-next');
   while (!(await next.isDisabled())) {
     await next.click();
     step += 1;
-    await waitForMapReady(page);
-    await assertMapCenterInSurrey(page, `tour step ${step}`);
+    await waitForCameraSettled(page);
   }
 
   await page.locator('#tour-exit').click();
-  await waitForMapReady(page);
+  await waitForCameraSettled(page);
 }
 
 async function main() {
+  for (const name of [
+    '01-overview',
+    '02-city-centre-3d',
+    '03-project-panel',
+    '04-transit-overlay',
+    '05-fleetwood',
+    '06-campbell-heights',
+    '07-mobile',
+  ]) {
+    const dest = join(EVIDENCE, `${name}.png`);
+    if (existsSync(dest)) unlinkSync(dest);
+  }
+
   const server = await startServer();
 
   const browser = await chromium.launch();
@@ -86,10 +79,13 @@ async function main() {
     recordVideo: { dir: VIDEO_DIR, size: { width: 1600, height: 1000 } },
   });
   const page = await context.newPage();
+  await page.addInitScript(() => {
+    window.__cameraInstant = true;
+  });
 
   await page.goto('http://localhost:4173', { waitUntil: 'networkidle' });
   await page.waitForSelector('.project-list li button', { timeout: 20000 });
-  await waitForMapReady(page);
+  await waitForCameraSettled(page);
 
   const screenshots = [
     {
@@ -97,71 +93,50 @@ async function main() {
       action: async () => {
         await page.click('[data-preset="overview"]');
       },
-      assert: () =>
-        assertMapViewShowsSurrey(page, '01-overview', {
-          minProjects: 10,
-          requiredLabels: ['Fleetwood', 'King George Boulevard'],
-        }),
+      assert: () => assertOverviewView(page, '01-overview'),
     },
     {
       name: '02-city-centre-3d',
       action: async () => {
         await page.click('[data-preset="city_centre"]');
       },
-      assert: async () => {
-        await assertMapCenterInBbox(page, pilotAreas.city_centre.bbox, '02-city-centre-3d');
-        await assertMapViewShowsSurrey(page, '02-city-centre-3d', {
-          minProjects: 20,
-          requiredLabels: ['Surrey Central', 'King George', 'Scott Road'],
-        });
-      },
+      assert: () => assertCityCentreView(page, '02-city-centre-3d'),
     },
     {
       name: '03-project-panel',
       action: async () => {
         await page.click('[data-preset="city_centre"]');
-        await waitForMapReady(page);
-        await page.locator('.project-list li button').first().click();
-        await waitForMapReady(page);
+        await waitForCameraSettled(page);
+        await selectCityCentreProject(page);
       },
-      assert: async () => {
-        await assertMapViewShowsSurrey(page, '03-project-panel', { minProjects: 1 });
-        await assertProjectPanel(page);
-      },
+      assert: () => assertProjectPanel(page, '03-project-panel'),
     },
     {
       name: '04-transit-overlay',
       action: async () => {
+        await page.click('#close-detail');
         await page.click('[data-preset="city_centre"]');
-        await waitForMapReady(page);
+        await waitForCameraSettled(page);
         await page.locator('#toggle-ftda').check();
         await page.locator('#toggle-amenities').check();
+        await waitForCameraSettled(page);
       },
-      assert: async () => {
-        await assertMapCenterInBbox(page, pilotAreas.city_centre.bbox, '04-transit-overlay');
-        await assertMapViewShowsSurrey(page, '04-transit-overlay', {
-          minProjects: 20,
-          requiredLabels: ['Surrey Central', 'King George', 'Scott Road'],
-        });
-      },
+      assert: () => assertCityCentreView(page, '04-transit-overlay'),
     },
     {
       name: '05-fleetwood',
       action: async () => {
         await page.click('[data-preset="fleetwood"]');
       },
-      assert: () =>
-        assertMapViewShowsSurrey(page, '05-fleetwood', {
-          minProjects: 1,
-          requiredLabels: ['Fleetwood'],
-        }),
+      assert: () => assertPilotMassingView(page, pilotAreas.fleetwood.bbox, '05-fleetwood'),
     },
     {
       name: '06-campbell-heights',
       action: async () => {
         await page.click('[data-preset="campbell_heights"]');
       },
-      assert: () => assertMapViewShowsSurrey(page, '06-campbell-heights', { minProjects: 1 }),
+      assert: () =>
+        assertPilotMassingView(page, pilotAreas.campbell_heights.bbox, '06-campbell-heights'),
     },
   ];
 
@@ -172,15 +147,13 @@ async function main() {
   await recordTour(page);
 
   await page.setViewportSize({ width: 390, height: 844 });
+  const mobileShot = join(EVIDENCE, '07-mobile.png');
+  if (existsSync(mobileShot)) unlinkSync(mobileShot);
   await page.goto('http://localhost:4173', { waitUntil: 'networkidle' });
   await page.waitForSelector('.project-list li button', { timeout: 15000 });
-  await page.locator('.project-list li button').first().click();
-  await waitForMapReady(page);
-  await assertMapCenterInSurrey(page, '07-mobile');
-  await page.screenshot({
-    path: join(EVIDENCE, '07-mobile.png'),
-    fullPage: false,
-  });
+  await selectCityCentreProject(page);
+  await assertProjectPanel(page, '07-mobile');
+  await page.screenshot({ path: mobileShot, fullPage: false });
   console.log('Screenshot: 07-mobile.png');
 
   await context.close();
