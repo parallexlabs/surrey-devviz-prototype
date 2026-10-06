@@ -3,6 +3,34 @@
 **Built:** 2026-10-06 (local only, not deployed)  
 **Prototype by:** ParalleX Labs Inc. for City of Surrey RFP 1220-030-2026-063
 
+## Pass 4: visible frame, not the camera center
+
+### Root cause
+
+The camera was not still flying. After `moveend` and `idle`, `getCenter()` was already the City Centre preset (`-122.8479, 49.188`, zoom 15.5, pitch 30), and the saved PNG still showed the Fraser at Surrey Public Wharf and 116 Avenue.
+
+`#app` used `min-height: 100vh`, so the grid row grew with the project list. The document was 5756px tall and the map pane was 5686px tall. The window showed only the top of that pane. With pitch, that top slice is the northern horizon. `getCenter()` is the center of the whole pane, which sat below the fold, inside the loose Surrey box, so the location tests passed. Surrey Central projected to about y=2738 on that pane, outside the visible window. The project panel is anchored to the bottom of the pane, so it was also below the fold: `03-project-panel.png` showed Coquitlam with no panel and no rings.
+
+### Fixes
+
+- Lock the app to the viewport (`height: 100dvh`, `minmax(0, 1fr)`) so the map pane matches the window and the list scrolls inside the sidebar.
+- Tests and the recorder set an instant-camera flag. Presets and project selection then use `jumpTo`. Assertions and PNGs wait for `moveend`, then for `idle`.
+- Replace the loose Surrey box with checks after idle: Surrey Central on screen and at least 10 rendered massing features for City Centre; at least one rendered massing feature and a center inside the pilot bbox for Fleetwood and Campbell Heights; the Surrey extent on screen for the overview, with no more than a fifth of the frame north of the Fraser.
+- The recorder deletes a PNG before the shot and writes it only after the checks pass.
+- Overview uses `cameraForBounds` on the Surrey extent. Campbell Heights uses zoom 12.4 and pitch 25 so its massing stays in frame on both the test viewport and the 1600×1000 evidence viewport.
+
+### What the evidence PNGs show
+
+Opened after the recorder passed:
+
+- `01-overview.png`: all of Surrey, with the Fraser as a northern edge rather than the subject. Readable labels include Whalley, Guildford, Fleetwood, Newton, Cloverdale, South Surrey, White Rock, Fraser Heights, Port Kells, Bridgeview, and Highways 1, 10, 15, 17, 91, and 99. Green project dots run from the river south to the border.
+- `02-city-centre-3d.png`: blue massing around Surrey Central station. Readable names include King George Boulevard, University Drive, Old Yale Road, City Parkway, 100 Avenue, 102 Avenue, 104 Avenue, 108 Avenue, 132 Street, and 133 Street.
+- `03-project-panel.png`: City Centre project panel, wider than 250px, text "Nearest SkyTrain: Scott Road" and a 612 m straight-line distance, with orange and red rings on the map. Readable names include King George Boulevard, 108 Avenue through 115 Avenue, 110 Avenue, 111 Avenue, 128 Street, and 132 Street. A yellow parcel marks the selected project.
+- `04-transit-overlay.png`: the same City Centre massing with FTDA and amenities checked. Readable names include King George Boulevard, University Drive, Old Yale Road, 102 Avenue, 104 Avenue, and Surrey Central station.
+- `05-fleetwood.png`: Fleetwood grid with green massing dots. Readable names include Fraser Highway, 80 Avenue, 82 Avenue, 84 Avenue, 88 Avenue, 152 Street, 156 Street, 158 Street, and 160 Street.
+- `06-campbell-heights.png`: south Surrey around the Nicomekl, with green massing dots. Readable names include 16 Avenue, 24 Avenue, 32 Avenue, 40 Avenue, Highway 10, Highway 15, Colebrook Road, 168 Street, 176 Street, 184 Street, 192 Street, and King George Boulevard.
+- `07-mobile.png`: 390×844 layout, project panel open over a yellow parcel. Readable names include 111 Avenue, 114 Avenue, and 128 Street.
+
 ## Pass 3: map location fix
 
 ### Root cause
@@ -90,7 +118,7 @@ This is a working static web prototype using **real public data** from City of S
 | Production build | Success | `dist/` |
 | Recording assertions | All seven screenshots + walkthrough | `npm run record` |
 
-E2E coverage now asserts `map.getCenter()` lies inside Surrey after every camera preset, every tour step, and project selection; City Centre preset is checked against the City Centre bbox in `public/data/pilot_areas.json`.
+E2E coverage waits for `moveend` and `idle`, then checks the visible map: Surrey Central on screen with at least 10 rendered massing features, Fleetwood and Campbell Heights massing with the center inside each pilot bbox, and the overview framing Surrey without the north side of the Fraser filling the frame. The project panel must be on screen, at least 250px wide, and show "Nearest SkyTrain" with proximity rings rendered.
 
 ## Evidence
 
@@ -105,7 +133,7 @@ E2E coverage now asserts `map.getCenter()` lies inside Surrey after every camera
 | Screenshot 6: Campbell Heights | `evidence/06-campbell-heights.png` |
 | Screenshot 7: Mobile (390×844) | `evidence/07-mobile.png` |
 
-Desktop screenshots are 1600×1000 PNG. Recorder fails rather than save a frame when map-center or view-label checks fail.
+Desktop screenshots are 1600×1000 PNG. The recorder deletes each PNG first and writes it only after the settled-view checks pass.
 
 ## How to run
 
