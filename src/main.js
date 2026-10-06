@@ -7,6 +7,7 @@ import {
   getSkyTrainStations,
   enrichProjects,
   pilotAreaLabel,
+  pilotAreaLabelPoints,
   pilotAreaOutlines,
   SURREY_LICENCE_TEXT,
   SURREY_LICENCE_URL,
@@ -488,6 +489,7 @@ function addSourcesAndLayers() {
   map.addSource('skytrain-stations', { type: 'geojson', data: window.__skytrainStationsFc });
   map.addSource('amenities', { type: 'geojson', data: window.__amenitiesFc });
   map.addSource('pilot-areas', { type: 'geojson', data: pilotAreaOutlines(pilotAreasMeta) });
+  map.addSource('pilot-area-labels', { type: 'geojson', data: pilotAreaLabelPoints(pilotAreasMeta) });
   map.addSource('project-markers', { type: 'geojson', data: projectMarkerPoints(projectsFc) });
   map.addSource('proximity-rings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addSource('project-highlight', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -620,7 +622,8 @@ function addSourcesAndLayers() {
   map.addLayer({
     id: 'pilot-areas-label',
     type: 'symbol',
-    source: 'pilot-areas',
+    source: 'pilot-area-labels',
+    maxzoom: AMENITY_MIN_ZOOM,
     layout: {
       'text-field': ['get', 'name'],
       'text-font': ['Noto Sans Bold'],

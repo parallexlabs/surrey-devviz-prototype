@@ -125,3 +125,24 @@ export function pilotAreaOutlines(pilotAreas) {
   }
   return { type: 'FeatureCollection', features };
 }
+
+export function pilotAreaLabelPoints(pilotAreas) {
+  return {
+    type: 'FeatureCollection',
+    features: pilotAreaOutlines(pilotAreas).features.map((feature) => {
+      const ring = feature.geometry.coordinates[0];
+      const west = ring[0][0];
+      const south = ring[0][1];
+      const east = ring[2][0];
+      const north = ring[2][1];
+      return {
+        type: 'Feature',
+        properties: feature.properties,
+        geometry: {
+          type: 'Point',
+          coordinates: [(west + east) / 2, (south + north) / 2],
+        },
+      };
+    }),
+  };
+}
