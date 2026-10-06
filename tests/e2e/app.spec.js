@@ -1,17 +1,20 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'fs';
+import { join } from 'path';
 import { PNG } from 'pngjs';
 import {
   assertCityCentreView,
   assertOverviewView,
   assertPilotMassingView,
   assertProjectPanel,
+  getMapCenter,
   loadPilotAreas,
   readOverviewDecoration,
   selectCityCentreProject,
   waitForCameraSettled,
 } from '../helpers/mapAssertions.js';
 import { RINGS_EXPLANATION } from '../../src/copy.js';
+import { geometryContains } from '../../src/data.js';
 
 const pilotAreas = loadPilotAreas();
 
@@ -286,6 +289,31 @@ test.describe('Surrey DevViz prototype', () => {
   test('the published page asks crawlers not to index it', async ({ page }) => {
     await page.goto('./');
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
+  });
+
+  test('Campbell Heights sits on the official local area plans', async ({ page }) => {
+    await page.goto('./');
+    await page.waitForSelector('[data-preset="campbell_heights"]', { timeout: 15000 });
+    await page.click('[data-preset="campbell_heights"]');
+    await assertPilotMassingView(page, pilotAreas.campbell_heights.bbox, 'Campbell Heights official extent');
+    const center = await getMapCenter(page);
+    const area = pilotAreas.campbell_heights;
+    expect(area.bbox[0]).toBeGreaterThan(-122.72);
+    expect(area.bbox[2]).toBeLessThan(-122.67);
+    expect(area.bbox[1]).toBeGreaterThan(49.01);
+    expect(area.bbox[3]).toBeLessThan(49.09);
+    expect(geometryContains(area.geometry, center.lng, center.lat)).toBe(true);
+
+    const projects = JSON.parse(
+      readFileSync(join(process.cwd(), 'public/data/development_projects.geojson'), 'utf8'),
+    );
+    const tagged = projects.features.filter((feature) => feature.properties.pilot_area === 'campbell_heights');
+    expect(tagged.length).toBeGreaterThan(0);
+    for (const feature of tagged) {
+      const { assign_lon: lon, assign_lat: lat } = feature.properties;
+      expect(geometryContains(area.geometry, lon, lat)).toBe(true);
+      expect(geometryContains(feature.geometry, lon, lat)).toBe(true);
+    }
   });
 
   test('overview shows the three pilot areas without amenity clutter', async ({ page }) => {

@@ -33,7 +33,7 @@ const CAMERA_PRESETS = {
   overview: { center: [-122.8, 49.1], zoom: 11.2, pitch: 0, bearing: 0 },
   city_centre: { center: [-122.85, 49.19], zoom: 15.5, pitch: 30, bearing: -20 },
   fleetwood: { center: [-122.8, 49.16], zoom: 14.5, pitch: 35, bearing: 0 },
-  campbell_heights: { center: [-122.78, 49.085], zoom: 12.4, pitch: 25, bearing: 0 },
+  campbell_heights: { center: [-122.694, 49.051], zoom: 13.2, pitch: 18, bearing: 0 },
 };
 
 const SURREY_EXTENT = {
@@ -54,6 +54,33 @@ function applyPilotAreaPresets(pilotAreas) {
 
 function cameraMovesInstantly(options = {}) {
   return prefersReducedMotion || options.instant || window.__cameraInstant === true;
+}
+
+function campbellHeightsCamera() {
+  const area = pilotAreasMeta?.campbell_heights;
+  const bbox = area?.bbox;
+  if (!map?.cameraForBounds || !bbox || bbox.length !== 4) return CAMERA_PRESETS.campbell_heights;
+  const [west, south, east, north] = bbox;
+  const fitted = map.cameraForBounds(
+    [
+      [west, south],
+      [east, north],
+    ],
+    { padding: 48, bearing: 0, pitch: 18 },
+  );
+  if (!fitted?.center) return CAMERA_PRESETS.campbell_heights;
+  return {
+    center: [fitted.center.lng, fitted.center.lat],
+    zoom: fitted.zoom,
+    bearing: 0,
+    pitch: 18,
+  };
+}
+
+function presetCamera(name) {
+  if (name === 'overview') return overviewCamera();
+  if (name === 'campbell_heights') return campbellHeightsCamera();
+  return CAMERA_PRESETS[name];
 }
 
 function overviewCamera() {
@@ -424,7 +451,7 @@ function applyLocationHash() {
 }
 
 function flyToPreset(name, options = {}) {
-  const preset = options.camera || (name === 'overview' ? overviewCamera() : CAMERA_PRESETS[name]);
+  const preset = options.camera || presetCamera(name);
   if (!preset || !map) return;
   if (cameraMovesInstantly(options)) map.jumpTo(preset);
   else map.flyTo({ ...preset, duration: 2000 });
@@ -521,6 +548,7 @@ function addSourcesAndLayers() {
     id: 'pilot-areas-outline',
     type: 'line',
     source: 'pilot-areas',
+    maxzoom: 14,
     paint: {
       'line-color': '#163a6b',
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.5, 14, 3.5],

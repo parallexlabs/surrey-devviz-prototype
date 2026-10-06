@@ -1,7 +1,15 @@
 import { isShowcaseProject } from './showcase.js';
 import { parseStoreys } from './heights.js';
 import { nearestStation, formatDistance, featureCentroid } from './proximity.js';
-import { getSkyTrainStations, getSkyTrainLines, pilotAreaLabel } from './data.js';
+import { geometryContains, getSkyTrainStations, getSkyTrainLines } from './data.js';
+
+function pointInArea(lon, lat, area) {
+  if (!area) return false;
+  if (area.geometry) return geometryContains(area.geometry, lon, lat);
+  const bbox = area.bbox;
+  if (!bbox) return false;
+  return lon >= bbox[0] && lon <= bbox[2] && lat >= bbox[1] && lat <= bbox[3];
+}
 
 function countShowcaseInArea(projects, area) {
   return projects.filter(
@@ -9,12 +17,11 @@ function countShowcaseInArea(projects, area) {
   ).length;
 }
 
-function civicAnchorsInArea(amenities, bbox) {
-  if (!bbox) return [];
+function civicAnchorsInArea(amenities, area) {
   return amenities.features.filter((f) => {
     if (f.geometry?.type !== 'Point') return false;
     const [lon, lat] = f.geometry.coordinates;
-    return lon >= bbox[0] && lon <= bbox[2] && lat >= bbox[1] && lat <= bbox[3];
+    return pointInArea(lon, lat, area);
   });
 }
 
@@ -33,11 +40,10 @@ function tallestShowcase(projects, area = null) {
   return best ? { feature: best, storeys: bestStoreys } : null;
 }
 
-function stationsInBbox(stations, bbox) {
-  if (!bbox) return [];
+function stationsInArea(stations, area) {
   return stations.filter((s) => {
     const [lon, lat] = s.geometry.coordinates;
-    return lon >= bbox[0] && lon <= bbox[2] && lat >= bbox[1] && lat <= bbox[3];
+    return pointInArea(lon, lat, area);
   });
 }
 
@@ -57,9 +63,8 @@ export function buildTourSteps(projectsFc, skytrainFc, amenitiesFc, pilotAreas) 
     },
   ];
 
-  const ccBbox = pilotAreas?.city_centre?.bbox;
-  const ccStations = stationsInBbox(stations, ccBbox);
-  const ccAnchors = civicAnchorsInArea(amenitiesFc, ccBbox);
+  const ccStations = stationsInArea(stations, pilotAreas?.city_centre);
+  const ccAnchors = civicAnchorsInArea(amenitiesFc, pilotAreas?.city_centre);
   const anchorNames = ccAnchors
     .map((f) => f.properties.name)
     .filter(Boolean)
@@ -90,7 +95,7 @@ export function buildTourSteps(projectsFc, skytrainFc, amenitiesFc, pilotAreas) 
     preset: 'fleetwood',
     title: 'Fleetwood',
     caption: `${countShowcaseInArea(projects, 'fleetwood')} showcase projects in the Fleetwood Town Centre pilot area.${(() => {
-      const anchors = civicAnchorsInArea(amenitiesFc, pilotAreas?.fleetwood?.bbox);
+      const anchors = civicAnchorsInArea(amenitiesFc, pilotAreas?.fleetwood);
       const names = anchors.map((f) => f.properties.name).filter(Boolean);
       return names.length ? ` Amenities in data: ${names.join(', ')}.` : '';
     })()}`,
@@ -100,7 +105,7 @@ export function buildTourSteps(projectsFc, skytrainFc, amenitiesFc, pilotAreas) 
     id: 'campbell_heights',
     preset: 'campbell_heights',
     title: 'Campbell Heights',
-    caption: `${countShowcaseInArea(projects, 'campbell_heights')} showcase projects in the Campbell Heights pilot area.`,
+    caption: `${countShowcaseInArea(projects, 'campbell_heights')} showcase projects inside the Campbell Heights and South Campbell Heights local area plans.`,
   });
 
   return steps;

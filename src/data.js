@@ -2,7 +2,7 @@ import { isShowcaseProject } from './showcase.js';
 import { computeProjectHeight } from './heights.js';
 import { projectTitle } from './titles.js';
 
-const DATA_BASE = `${import.meta.env.BASE_URL || '/'}data`;
+const DATA_BASE = `${import.meta.env?.BASE_URL || '/'}data`;
 
 export const SURREY_LICENCE_TEXT =
   'Contains information licensed under the Open Government License – City of Surrey.';
@@ -100,49 +100,64 @@ export function pilotAreaLabel(area) {
   return labels[area] || area;
 }
 
+function ringContains(lon, lat, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0];
+    const yi = ring[i][1];
+    const xj = ring[j][0];
+    const yj = ring[j][1];
+    if ((yi > lat) === (yj > lat)) continue;
+    const xCross = ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+    if (lon < xCross) inside = !inside;
+  }
+  return inside;
+}
+
+function polygonsOf(geometry) {
+  if (!geometry) return [];
+  if (geometry.type === 'Polygon') return [geometry.coordinates];
+  if (geometry.type === 'MultiPolygon') return geometry.coordinates;
+  return [];
+}
+
+export function geometryContains(geometry, lon, lat) {
+  return polygonsOf(geometry).some((polygon) => {
+    if (!polygon?.length || !ringContains(lon, lat, polygon[0])) return false;
+    return !polygon.slice(1).some((hole) => ringContains(lon, lat, hole));
+  });
+}
+
+export function pointInPilotArea(pilotAreas, areaId, lon, lat) {
+  const geometry = pilotAreas?.[areaId]?.geometry;
+  if (!geometry) return false;
+  return geometryContains(geometry, lon, lat);
+}
+
 export function pilotAreaOutlines(pilotAreas) {
   const features = [];
   for (const [id, area] of Object.entries(pilotAreas || {})) {
-    const bbox = area?.bbox;
-    if (!bbox || bbox.length !== 4) continue;
-    const [west, south, east, north] = bbox;
+    const geometry = area?.geometry;
+    if (!geometry || (geometry.type !== 'Polygon' && geometry.type !== 'MultiPolygon')) continue;
     features.push({
       type: 'Feature',
       properties: { id, name: pilotAreaLabel(id) },
-      geometry: {
-        type: 'Polygon',
-        coordinates: [
-          [
-            [west, south],
-            [east, south],
-            [east, north],
-            [west, north],
-            [west, south],
-          ],
-        ],
-      },
+      geometry,
     });
   }
   return { type: 'FeatureCollection', features };
 }
 
 export function pilotAreaLabelPoints(pilotAreas) {
-  return {
-    type: 'FeatureCollection',
-    features: pilotAreaOutlines(pilotAreas).features.map((feature) => {
-      const ring = feature.geometry.coordinates[0];
-      const west = ring[0][0];
-      const south = ring[0][1];
-      const east = ring[2][0];
-      const north = ring[2][1];
-      return {
-        type: 'Feature',
-        properties: feature.properties,
-        geometry: {
-          type: 'Point',
-          coordinates: [(west + east) / 2, (south + north) / 2],
-        },
-      };
-    }),
-  };
+  const features = [];
+  for (const [id, area] of Object.entries(pilotAreas || {})) {
+    const coordinates = area?.label;
+    if (!coordinates || coordinates.length < 2) continue;
+    features.push({
+      type: 'Feature',
+      properties: { id, name: pilotAreaLabel(id) },
+      geometry: { type: 'Point', coordinates: [coordinates[0], coordinates[1]] },
+    });
+  }
+  return { type: 'FeatureCollection', features };
 }

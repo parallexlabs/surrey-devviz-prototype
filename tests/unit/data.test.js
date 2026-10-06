@@ -5,9 +5,11 @@ import {
   getSkyTrainStations,
   getSkyTrainLines,
   projectLabel,
+  geometryContains,
   pilotAreaLabel,
   pilotAreaLabelPoints,
   pilotAreaOutlines,
+  pointInPilotArea,
   publicDataRetrievedLabel,
 } from '../../src/data.js';
 
@@ -67,7 +69,7 @@ describe('pilotAreaLabel', () => {
 });
 
 describe('pilotAreaOutlines', () => {
-  it('draws a labelled box for each pilot area', () => {
+  it('draws the official polygon for each pilot area', () => {
     const areas = JSON.parse(readFileSync(join(process.cwd(), 'public/data/pilot_areas.json'), 'utf8'));
     const outlines = pilotAreaOutlines(areas);
     expect(outlines.features.map((feature) => feature.properties.name).sort()).toEqual([
@@ -76,14 +78,26 @@ describe('pilotAreaOutlines', () => {
       'Fleetwood Town Centre',
     ]);
     for (const feature of outlines.features) {
-      expect(feature.geometry.type).toBe('Polygon');
-      expect(feature.geometry.coordinates[0]).toHaveLength(5);
+      expect(['Polygon', 'MultiPolygon']).toContain(feature.geometry.type);
+      expect(feature.geometry).toEqual(areas[feature.properties.id].geometry);
     }
   });
 });
 
+describe('Campbell Heights plan polygon', () => {
+  const areas = JSON.parse(readFileSync(join(process.cwd(), 'public/data/pilot_areas.json'), 'utf8'));
+
+  it('contains 192 Street and 32 Avenue', () => {
+    expect(pointInPilotArea(areas, 'campbell_heights', -122.69, 49.054)).toBe(true);
+  });
+
+  it('does not contain 160 Street and 32 Avenue', () => {
+    expect(pointInPilotArea(areas, 'campbell_heights', -122.776, 49.054)).toBe(false);
+  });
+});
+
 describe('pilotAreaLabelPoints', () => {
-  it('places one label at the centre of each pilot area', () => {
+  it('places one label inside each official polygon', () => {
     const areas = JSON.parse(readFileSync(join(process.cwd(), 'public/data/pilot_areas.json'), 'utf8'));
     const labels = pilotAreaLabelPoints(areas);
     expect(labels.features).toHaveLength(3);
@@ -93,9 +107,10 @@ describe('pilotAreaLabelPoints', () => {
       'Fleetwood Town Centre',
     ]);
     for (const feature of labels.features) {
-      const [west, south, east, north] = areas[feature.properties.id].bbox;
+      const area = areas[feature.properties.id];
       expect(feature.geometry.type).toBe('Point');
-      expect(feature.geometry.coordinates).toEqual([(west + east) / 2, (south + north) / 2]);
+      expect(feature.geometry.coordinates).toEqual(area.label);
+      expect(geometryContains(area.geometry, area.label[0], area.label[1])).toBe(true);
     }
   });
 });

@@ -41,7 +41,7 @@ export function methodologyModel(sources) {
       {
         heading: 'Limitations',
         paragraphs: [
-          'Campbell Heights uses a drawn envelope because the open data did not include an official boundary for that place.',
+          'Campbell Heights is the union of the City of Surrey Campbell Heights Local Area Plan and South Campbell Heights Local Area Plan. A project is placed in a pilot area only when its location is inside that official polygon.',
           'SkyTrain lines and stations come from OpenStreetMap and may omit planned extensions.',
           'The 400 m and 800 m rings are straight-line distances, not walking routes.',
           'Existing building footprints are shown for City Centre only.',
