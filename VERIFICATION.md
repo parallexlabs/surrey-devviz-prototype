@@ -1,10 +1,10 @@
 # Verification
 
-Checked 6 October 2026 on the pass 10e working tree. Parent commit: `6aff88b4fe300ce3a8bb752bb5fcf2f8e8fd06c1`.
+Checked 6 October 2026. The unit, Python and end-to-end tests below were run again on the published source at commit `5486ff4` (later commits change only this file and the README screenshots). The axe scan, the Content Security Policy check and the load profile were measured on commit `9157223`; `5486ff4` changes two text strings only.
 
 **Live URL:** https://parallexlabs.ca/demos/surrey/
 
-This pass was not deployed. The live URL was not rebuilt from this tree.
+The live URL was rebuilt from this source and redeployed on 6 October 2026.
 
 ## Tests
 
@@ -52,7 +52,7 @@ Dates are the `retrieved_at` values in `public/data/SOURCES.json`. `civic_places
 
 ## Evidence
 
-Recorded after the checks above. Desktop frames are 1600×1000. The phone frame is the full page, 390×8062. Walkthrough: `evidence/walkthrough.mp4`, 27.36 seconds, 3,702,041 bytes.
+Recorded after the checks above. The evidence files are kept with the project records rather than in this repository; the README screenshots in `docs/` are taken from the same recording. Desktop frames are 1600×1000. The phone frame is the full page, 390×8062. Walkthrough: `evidence/walkthrough.mp4`, 27.36 seconds, 3,702,041 bytes.
 
 - `evidence/01-overview.png`
 - `evidence/02-city-centre-3d.png`
@@ -68,4 +68,3 @@ Recorded after the checks above. Desktop frames are 1600×1000. The phone frame 
 
 - No formal acceptance testing.
 - No manual screen-reader audit. The axe result is the automated check only.
-- Not deployed and not pushed.
