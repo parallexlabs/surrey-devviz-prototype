@@ -33,16 +33,14 @@ describe('getSkyTrainLines', () => {
 });
 
 describe('projectLabel', () => {
-  it('combines project number and description', () => {
-    const label = projectLabel({ PROJECT_NO: '7920-0340', DESCRIPTION: 'Mixed use tower' });
+  it('combines title from description with application number', () => {
+    const label = projectLabel({
+      PROJECT_NO: '7920-0340',
+      DESCRIPTION: 'Mixed use tower; Development Permit for 200 units.',
+      display_title: 'Mixed use tower',
+    });
     expect(label).toContain('7920-0340');
-    expect(label).toContain('Mixed use');
-  });
-
-  it('truncates long descriptions', () => {
-    const long = 'A'.repeat(80);
-    const label = projectLabel({ PROJECT_NO: '123', DESCRIPTION: long });
-    expect(label.length).toBeLessThan(80);
+    expect(label).toContain('Mixed use tower');
   });
 });
 
