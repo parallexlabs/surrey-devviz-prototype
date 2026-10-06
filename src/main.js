@@ -7,6 +7,7 @@ import {
   getSkyTrainStations,
   enrichProjects,
   pilotAreaLabel,
+  pilotAreaOutlines,
   SURREY_LICENCE_TEXT,
   SURREY_LICENCE_URL,
 } from './data.js';
@@ -65,6 +66,9 @@ function overviewCamera() {
   );
   return fitted ? { ...fitted, bearing: 0, pitch: 0 } : CAMERA_PRESETS.overview;
 }
+
+const AMENITY_MIN_ZOOM = 13;
+const PROJECT_MARKER_MAX_ZOOM = 13;
 
 const AREA_COLORS = {
   city_centre: { estimated: '#1e6fd4', illustrative: '#8eb8e8' },
@@ -457,17 +461,20 @@ function initMap() {
     const parsed = parseLocationHash(location.hash);
     if (parsed.view || parsed.project) applyLocationHash();
     else flyToPreset('overview', { instant: true });
-    map.on('click', 'projects-extrusion', (e) => {
+    const selectFromMap = (e) => {
       if (e.features?.length) {
         selectProject(e.features[0].properties.OBJECTID ?? e.features[0].properties.PROJECT_NO);
       }
-    });
-    map.on('mouseenter', 'projects-extrusion', () => {
-      map.getCanvas().style.cursor = 'pointer';
-    });
-    map.on('mouseleave', 'projects-extrusion', () => {
-      map.getCanvas().style.cursor = '';
-    });
+    };
+    for (const layerId of ['projects-extrusion', 'projects-markers']) {
+      map.on('click', layerId, selectFromMap);
+      map.on('mouseenter', layerId, () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+      map.on('mouseleave', layerId, () => {
+        map.getCanvas().style.cursor = '';
+      });
+    }
     updateMapFilter();
   });
 }
@@ -480,6 +487,8 @@ function addSourcesAndLayers() {
   map.addSource('skytrain-lines', { type: 'geojson', data: window.__skytrainLinesFc });
   map.addSource('skytrain-stations', { type: 'geojson', data: window.__skytrainStationsFc });
   map.addSource('amenities', { type: 'geojson', data: window.__amenitiesFc });
+  map.addSource('pilot-areas', { type: 'geojson', data: pilotAreaOutlines(pilotAreasMeta) });
+  map.addSource('project-markers', { type: 'geojson', data: projectMarkerPoints(projectsFc) });
   map.addSource('proximity-rings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addSource('project-highlight', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 
@@ -504,6 +513,16 @@ function addSourcesAndLayers() {
     source: 'buildings',
     layout: { visibility: 'none' },
     paint: { 'fill-color': '#aaa', 'fill-opacity': 0.15 },
+  });
+
+  map.addLayer({
+    id: 'pilot-areas-outline',
+    type: 'line',
+    source: 'pilot-areas',
+    paint: {
+      'line-color': '#163a6b',
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.5, 14, 3.5],
+    },
   });
 
   map.addLayer({
@@ -563,14 +582,56 @@ function addSourcesAndLayers() {
   });
 
   map.addLayer({
+    id: 'projects-markers',
+    type: 'circle',
+    source: 'project-markers',
+    maxzoom: PROJECT_MARKER_MAX_ZOOM,
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 5, 12.8, 8],
+      'circle-color': [
+        'match',
+        ['get', 'pilot_area'],
+        'city_centre',
+        AREA_COLORS.city_centre.estimated,
+        'fleetwood',
+        AREA_COLORS.fleetwood.estimated,
+        'campbell_heights',
+        AREA_COLORS.campbell_heights.estimated,
+        AREA_COLORS.default.estimated,
+      ],
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 2,
+    },
+  });
+
+  map.addLayer({
     id: 'amenities-points',
     type: 'circle',
     source: 'amenities',
+    minzoom: AMENITY_MIN_ZOOM,
     paint: {
       'circle-radius': 6,
       'circle-color': '#2a7a4b',
       'circle-stroke-color': '#fff',
       'circle-stroke-width': 1.5,
+    },
+  });
+
+  map.addLayer({
+    id: 'pilot-areas-label',
+    type: 'symbol',
+    source: 'pilot-areas',
+    layout: {
+      'text-field': ['get', 'name'],
+      'text-font': ['Noto Sans Bold'],
+      'text-size': 14,
+      'text-allow-overlap': true,
+      'text-ignore-placement': true,
+    },
+    paint: {
+      'text-color': '#163a6b',
+      'text-halo-color': '#ffffff',
+      'text-halo-width': 2,
     },
   });
 
@@ -606,6 +667,21 @@ function updateMapFilter() {
   if (clauses.length === 1) filter = clauses[0];
   else if (clauses.length > 1) filter = ['all', ...clauses];
   map.setFilter('projects-extrusion', filter);
+  if (map.getLayer('projects-markers')) map.setFilter('projects-markers', filter);
+}
+
+function projectMarkerPoints(fc) {
+  const features = [];
+  for (const feature of fc?.features || []) {
+    const coordinates = featureCentroid(feature);
+    if (!coordinates) continue;
+    features.push({
+      type: 'Feature',
+      properties: feature.properties,
+      geometry: { type: 'Point', coordinates },
+    });
+  }
+  return { type: 'FeatureCollection', features };
 }
 
 function populateStatusFilter() {

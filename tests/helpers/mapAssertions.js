@@ -196,6 +196,27 @@ export async function assertPilotMassingView(page, bbox, label) {
   return view;
 }
 
+export async function readOverviewDecoration(page) {
+  return page.evaluate(() => {
+    const map = window.__map;
+    if (!map) throw new Error('Map not exposed on window.__map');
+    const rect = map.getContainer().getBoundingClientRect();
+    const box = [
+      [0, 0],
+      [rect.width, rect.height],
+    ];
+    const count = (id) => (map.getLayer(id) ? map.queryRenderedFeatures(box, { layers: [id] }).length : 0);
+    const labels = map.getLayer('pilot-areas-label')
+      ? map.queryRenderedFeatures(box, { layers: ['pilot-areas-label'] })
+      : [];
+    return {
+      amenities: count('amenities-points'),
+      markers: count('projects-markers'),
+      names: [...new Set(labels.map((feature) => feature.properties?.name).filter(Boolean))].sort(),
+    };
+  });
+}
+
 export async function assertOverviewView(page, label = 'overview') {
   await waitForCameraSettled(page);
   const view = await readMapView(page);

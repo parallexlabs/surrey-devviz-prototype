@@ -7,6 +7,7 @@ import {
   assertPilotMassingView,
   assertProjectPanel,
   loadPilotAreas,
+  readOverviewDecoration,
   selectCityCentreProject,
   waitForCameraSettled,
 } from '../helpers/mapAssertions.js';
@@ -280,6 +281,17 @@ test.describe('Surrey DevViz prototype', () => {
     );
     await assertProjectPanel(page, 'project hash');
     await expect(page).toHaveURL(/#project=21-0313-00/);
+  });
+
+  test('overview shows the three pilot areas without amenity clutter', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('[data-preset="overview"]', { timeout: 15000 });
+    await page.click('[data-preset="overview"]');
+    await assertOverviewView(page, 'pilot overview');
+    const view = await readOverviewDecoration(page);
+    expect(view.amenities).toBeLessThan(30);
+    expect(view.names).toEqual(['Campbell Heights', 'City Centre', 'Fleetwood Town Centre']);
+    expect(view.markers).toBeGreaterThan(10);
   });
 
   test('start here fits a 390px screen and touch targets are at least 44px', async ({ page }) => {

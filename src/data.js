@@ -2,7 +2,7 @@ import { isShowcaseProject } from './showcase.js';
 import { computeProjectHeight } from './heights.js';
 import { projectTitle } from './titles.js';
 
-const DATA_BASE = './data';
+const DATA_BASE = `${import.meta.env.BASE_URL || '/'}data`;
 
 export const SURREY_LICENCE_TEXT =
   'Contains information licensed under the Open Government License – City of Surrey.';
@@ -98,4 +98,30 @@ export function pilotAreaLabel(area) {
     campbell_heights: 'Campbell Heights',
   };
   return labels[area] || area;
+}
+
+export function pilotAreaOutlines(pilotAreas) {
+  const features = [];
+  for (const [id, area] of Object.entries(pilotAreas || {})) {
+    const bbox = area?.bbox;
+    if (!bbox || bbox.length !== 4) continue;
+    const [west, south, east, north] = bbox;
+    features.push({
+      type: 'Feature',
+      properties: { id, name: pilotAreaLabel(id) },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [west, south],
+            [east, south],
+            [east, north],
+            [west, north],
+            [west, south],
+          ],
+        ],
+      },
+    });
+  }
+  return { type: 'FeatureCollection', features };
 }

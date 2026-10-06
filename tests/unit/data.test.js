@@ -6,6 +6,7 @@ import {
   getSkyTrainLines,
   projectLabel,
   pilotAreaLabel,
+  pilotAreaOutlines,
   publicDataRetrievedLabel,
 } from '../../src/data.js';
 
@@ -61,5 +62,21 @@ describe('pilotAreaLabel', () => {
     expect(pilotAreaLabel('city_centre')).toBe('City Centre');
     expect(pilotAreaLabel('fleetwood')).toBe('Fleetwood Town Centre');
     expect(pilotAreaLabel('campbell_heights')).toBe('Campbell Heights');
+  });
+});
+
+describe('pilotAreaOutlines', () => {
+  it('draws a labelled box for each pilot area', () => {
+    const areas = JSON.parse(readFileSync(join(process.cwd(), 'public/data/pilot_areas.json'), 'utf8'));
+    const outlines = pilotAreaOutlines(areas);
+    expect(outlines.features.map((feature) => feature.properties.name).sort()).toEqual([
+      'Campbell Heights',
+      'City Centre',
+      'Fleetwood Town Centre',
+    ]);
+    for (const feature of outlines.features) {
+      expect(feature.geometry.type).toBe('Polygon');
+      expect(feature.geometry.coordinates[0]).toHaveLength(5);
+    }
   });
 });
