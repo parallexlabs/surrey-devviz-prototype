@@ -35,20 +35,29 @@ async function main() {
   await page.goto('http://localhost:4173', { waitUntil: 'networkidle' });
   await page.waitForSelector('.project-list li button', { timeout: 20000 });
 
+  await page.locator('#start-tour').click();
+  await page.waitForTimeout(4000);
+  await page.locator('#tour-next').click();
+  await page.waitForTimeout(5000);
+  await page.locator('#tour-next').click();
+  await page.waitForTimeout(5000);
+  await page.locator('#tour-exit').click();
+  await page.waitForTimeout(2000);
+
   const screenshots = [
-    { name: '01-overview', action: async () => { await page.waitForTimeout(8000); } },
+    { name: '01-overview', action: async () => { await page.waitForTimeout(4000); } },
     {
       name: '02-city-centre-3d',
       action: async () => {
         await page.click('[data-preset="city_centre"]');
-        await page.waitForTimeout(12000);
+        await page.waitForTimeout(10000);
       },
     },
     {
       name: '03-project-panel',
       action: async () => {
         await page.locator('.project-list li button').first().click();
-        await page.waitForTimeout(10000);
+        await page.waitForTimeout(8000);
       },
     },
     {
@@ -56,21 +65,21 @@ async function main() {
       action: async () => {
         await page.locator('#toggle-ftda').check();
         await page.locator('#toggle-amenities').check();
-        await page.waitForTimeout(8000);
+        await page.waitForTimeout(6000);
       },
     },
     {
       name: '05-fleetwood',
       action: async () => {
         await page.click('[data-preset="fleetwood"]');
-        await page.waitForTimeout(12000);
+        await page.waitForTimeout(10000);
       },
     },
     {
       name: '06-campbell-heights',
       action: async () => {
         await page.click('[data-preset="campbell_heights"]');
-        await page.waitForTimeout(12000);
+        await page.waitForTimeout(10000);
       },
     },
   ];
@@ -88,7 +97,12 @@ async function main() {
   await page.goto('http://localhost:4173', { waitUntil: 'networkidle' });
   await page.waitForSelector('.project-list li button', { timeout: 15000 });
   await page.locator('.project-list li button').first().click();
-  await page.waitForTimeout(8000);
+  await page.waitForTimeout(6000);
+  await page.screenshot({
+    path: join(EVIDENCE, '07-mobile.png'),
+    fullPage: false,
+  });
+  console.log('Screenshot: 07-mobile.png');
 
   await context.close();
   await browser.close();

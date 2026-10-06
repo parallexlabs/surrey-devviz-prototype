@@ -1,4 +1,21 @@
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'fs';
+import { PNG } from 'pngjs';
+
+function countBodyBackgroundPixels(pngPath, xMin = 354, xMax = 729, yMin = 52, yMax = 480) {
+  const png = PNG.sync.read(readFileSync(pngPath));
+  let count = 0;
+  for (let y = yMin; y <= yMax; y += 1) {
+    for (let x = xMin; x <= xMax; x += 1) {
+      const i = (png.width * y + x) << 2;
+      const r = png.data[i];
+      const g = png.data[i + 1];
+      const b = png.data[i + 2];
+      if (r === 247 && g === 248 && b === 250) count += 1;
+    }
+  }
+  return count;
+}
 
 test.describe('Surrey DevViz prototype', () => {
   test('page loads with no console errors', async ({ page }) => {
@@ -42,6 +59,70 @@ test.describe('Surrey DevViz prototype', () => {
     await page.locator('.project-list li button').first().click();
     await expect(page.locator('#detail-panel')).toBeVisible();
     await expect(page.locator('.proximity')).toContainText(/m|km|SkyTrain/);
+  });
+
+  test('no empty overlay covers the map when project panel is open', async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await page.goto('/');
+    await page.waitForSelector('.project-list li button', { timeout: 15000 });
+    await page.click('[data-preset="city_centre"]');
+    await page.waitForTimeout(5000);
+    await page.locator('.project-list li button').first().click();
+    await page.waitForTimeout(8000);
+    const shot = '/tmp/e2e-panel-overlay.png';
+    await page.screenshot({ path: shot });
+    const whitePixels = countBodyBackgroundPixels(shot);
+    expect(whitePixels).toBeLessThan(1000);
+  });
+
+  test('showcase view filters by default and all applications switch works', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('.project-list li button', { timeout: 15000 });
+    const showcaseCount = await page.locator('.project-list li').count();
+    expect(showcaseCount).toBeGreaterThan(0);
+    await page.locator('#toggle-all-apps').check();
+    await page.waitForTimeout(300);
+    const allCount = await page.locator('.project-list li').count();
+    expect(allCount).toBeGreaterThanOrEqual(showcaseCount);
+    await page.locator('#filter-status').selectOption({ label: 'Under Review' });
+    const underReview = page.locator('.under-review-label');
+    if (await underReview.count()) {
+      await expect(underReview.first()).toHaveText('Under review');
+    }
+  });
+
+  test('at a glance summary is shown', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('#at-a-glance', { timeout: 15000 });
+    await expect(page.locator('#at-a-glance')).toContainText(/Showcase projects/i);
+    await expect(page.locator('#at-a-glance')).toContainText(/SkyTrain/i);
+  });
+
+  test('guided tour opens with keyboard controls', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('#start-tour', { timeout: 15000 });
+    await page.locator('#start-tour').click();
+    await expect(page.locator('#tour-panel')).toBeVisible();
+    await expect(page.locator('#tour-caption')).not.toBeEmpty();
+    await page.locator('#tour-next').click();
+    await expect(page.locator('#tour-title')).not.toBeEmpty();
+    await page.keyboard.press('ArrowRight');
+    await page.locator('#tour-exit').click();
+    await expect(page.locator('#tour-panel')).toBeHidden();
+  });
+
+  test('licence attribution and disclaimer are visible', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.app-footer')).toContainText(
+      'Contains information licensed under the Open Government License',
+    );
+    await expect(page.locator('.app-footer')).toContainText(
+      'not affiliated with or endorsed by the City of Surrey',
+    );
+    await page.locator('#tab-about').click();
+    await expect(page.locator('#about-content')).toContainText(
+      'not affiliated with or endorsed by the City of Surrey',
+    );
   });
 
   test('mobile viewport works', async ({ page }) => {
