@@ -10,6 +10,7 @@ import {
   selectCityCentreProject,
   waitForCameraSettled,
 } from '../helpers/mapAssertions.js';
+import { RINGS_EXPLANATION } from '../../src/copy.js';
 
 const pilotAreas = loadPilotAreas();
 
@@ -140,6 +141,10 @@ test.describe('Surrey DevViz prototype', () => {
     await page.waitForTimeout(300);
     const allCount = await page.locator('.project-list li').count();
     expect(allCount).toBeGreaterThanOrEqual(showcaseCount);
+    await expect(page.locator('#phase-filters')).toBeVisible();
+    for (const status of ['Conditional Approval', 'Under Review', 'Initial Review']) {
+      await expect(page.locator('.phase-filter', { hasText: status })).toBeVisible();
+    }
     await page.locator('#filter-status').selectOption({ label: 'Under Review' });
     const underReview = page.locator('.under-review-label');
     if (await underReview.count()) {
@@ -175,6 +180,15 @@ test.describe('Surrey DevViz prototype', () => {
     await expect(page.locator('.app-footer')).toContainText(
       'not affiliated with or endorsed by the City of Surrey',
     );
+    await expect(page.locator('#data-retrieved')).toHaveText('Public data retrieved 6 October 2026');
+    await page.locator('#open-methodology').click();
+    await expect(page.locator('#methodology-drawer')).toBeVisible();
+    await expect(page.locator('#methodology-content')).toContainText('Public data retrieved 6 October 2026');
+    await expect(page.locator('#methodology-content')).toContainText('Showcase rules');
+    await expect(page.locator('#methodology-content')).toContainText('Height method');
+    await expect(page.locator('#methodology-content')).toContainText('Limitations');
+    await page.locator('#close-methodology').click();
+    await expect(page.locator('#methodology-drawer')).toBeHidden();
     await page.locator('#tab-about').click();
     await expect(page.locator('#about-content')).toContainText(
       'not affiliated with or endorsed by the City of Surrey',
@@ -188,5 +202,109 @@ test.describe('Surrey DevViz prototype', () => {
     await expect(page.locator('.sidebar')).toBeVisible();
     await selectCityCentreProject(page);
     await assertProjectPanel(page, 'mobile project selection');
+  });
+
+  test('start here bar is keyboard operable and dismissible', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('#start-here', { timeout: 15000 });
+    await page.waitForSelector('.project-list li button', { timeout: 15000 });
+    await waitForCameraSettled(page);
+    const bar = page.locator('#start-here');
+    await expect(bar).toBeVisible();
+    for (const name of ['Explore projects', 'Transit and amenities', '3D City Centre', 'Guided tour']) {
+      await expect(bar.getByRole('button', { name })).toBeVisible();
+    }
+
+    await page.locator('#start-explore').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#project-list')).toBeFocused();
+
+    await page.locator('#start-transit').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#toggle-skytrain')).toBeChecked();
+    await expect(page.locator('#toggle-amenities')).toBeChecked();
+    await assertCityCentreView(page, 'start here transit');
+
+    await page.locator('#start-3d').focus();
+    await page.keyboard.press('Enter');
+    await assertCityCentreView(page, 'start here 3D City Centre');
+
+    await page.locator('#start-guided').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#tour-panel')).toBeVisible();
+    await page.locator('#tour-exit').click();
+    await expect(page.locator('#tour-panel')).toBeHidden();
+
+    await page.locator('#start-dismiss').focus();
+    await page.keyboard.press('Enter');
+    await expect(bar).toBeHidden();
+    await page.reload();
+    await page.waitForSelector('#map', { timeout: 15000 });
+    await expect(page.locator('#start-here')).toBeHidden();
+  });
+
+  test('rings are explained in the legend and the project panel', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('.rings-legend', { timeout: 15000 });
+    await waitForCameraSettled(page);
+    await expect(page.locator('.rings-legend')).toHaveText(RINGS_EXPLANATION);
+    await page.click('[data-preset="city_centre"]');
+    await assertCityCentreView(page, 'rings City Centre');
+    await selectCityCentreProject(page);
+    await expect(page.locator('#detail-panel')).toContainText(RINGS_EXPLANATION);
+    await assertProjectPanel(page, 'rings explained');
+  });
+
+  test('a view hash restores the camera preset', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('[data-preset="fleetwood"]', { timeout: 15000 });
+    await waitForCameraSettled(page);
+    await page.click('[data-preset="fleetwood"]');
+    await assertPilotMassingView(page, pilotAreas.fleetwood.bbox, 'fleetwood preset');
+    await expect(page).toHaveURL(/#view=fleetwood/);
+    await page.reload();
+    await page.waitForFunction(() => window.__map?.getLayer('projects-extrusion'));
+    await assertPilotMassingView(page, pilotAreas.fleetwood.bbox, 'fleetwood hash');
+  });
+
+  test('a project hash restores that application', async ({ page }) => {
+    await page.goto('/#project=21-0313-00');
+    await page.waitForFunction(() => window.__map?.getLayer('projects-extrusion'));
+    await expect(page.locator('#detail-panel')).toBeVisible();
+    await expect(page.locator('#detail-content')).toContainText('21-0313-00');
+    await expect(page.locator('#detail-content')).toContainText(
+      'Estimated from 67 storeys stated in the application',
+    );
+    await expect(page.locator('#detail-content')).toContainText(
+      'Source: City of Surrey Development Applications',
+    );
+    await assertProjectPanel(page, 'project hash');
+    await expect(page).toHaveURL(/#project=21-0313-00/);
+  });
+
+  test('start here fits a 390px screen and touch targets are at least 44px', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await page.waitForSelector('#start-here button', { timeout: 15000 });
+    await waitForCameraSettled(page);
+    const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+    expect(fits).toBe(true);
+    const bar = await page.locator('#start-here').boundingBox();
+    expect(bar.x).toBeGreaterThanOrEqual(0);
+    expect(bar.x + bar.width).toBeLessThanOrEqual(391);
+    expect(bar.y + bar.height).toBeLessThanOrEqual(844);
+
+    const ids = ['start-explore', 'start-transit', 'start-3d', 'start-guided', 'start-dismiss'];
+    for (const id of ids) {
+      const box = await page.locator(`#${id}`).boundingBox();
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.x).toBeGreaterThanOrEqual(-1);
+      expect(box.x + box.width).toBeLessThanOrEqual(391);
+    }
+
+    const preset = await page.locator('[data-preset="city_centre"]').boundingBox();
+    expect(preset.height).toBeGreaterThanOrEqual(44);
+    expect(preset.width).toBeGreaterThanOrEqual(44);
   });
 });

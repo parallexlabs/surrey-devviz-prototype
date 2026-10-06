@@ -1,6 +1,8 @@
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { parseStoreys } from '../../src/heights.js';
+import { isApprovedStatus } from '../../src/showcase.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..', '..');
@@ -246,4 +248,38 @@ export async function selectCityCentreProject(page) {
   });
   if (!selected) throw new Error('No City Centre showcase project in the list');
   await waitForCameraSettled(page);
+}
+
+export function tallestApprovedByStoreys() {
+  const fc = JSON.parse(readFileSync(join(ROOT, 'public/data/development_projects.geojson'), 'utf8'));
+  let best = null;
+  for (const feature of fc.features) {
+    if (!isApprovedStatus(feature.properties.STATUS)) continue;
+    const storeys = parseStoreys(feature.properties.DESCRIPTION);
+    if (storeys == null) continue;
+    if (!best || storeys > best.storeys) {
+      best = {
+        projectNo: feature.properties.PROJECT_NO,
+        storeys,
+        status: feature.properties.STATUS,
+      };
+    }
+  }
+  if (!best) throw new Error('No approved project states a storey count');
+  return best;
+}
+
+export async function selectTallestApprovedProject(page) {
+  const project = tallestApprovedByStoreys();
+  const selected = await page.evaluate((projectNo) => {
+    const btn = [...document.querySelectorAll('.project-list li button')].find((el) =>
+      el.innerText.includes(projectNo),
+    );
+    if (!btn) return false;
+    btn.click();
+    return true;
+  }, project.projectNo);
+  if (!selected) throw new Error(`Tallest approved project ${project.projectNo} is not in the list`);
+  await waitForCameraSettled(page);
+  return project;
 }

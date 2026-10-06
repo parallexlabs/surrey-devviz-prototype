@@ -10,6 +10,8 @@ import {
   assertProjectPanel,
   loadPilotAreas,
   selectCityCentreProject,
+  selectTallestApprovedProject,
+  tallestApprovedByStoreys,
   waitForCameraSettled,
 } from '../tests/helpers/mapAssertions.js';
 
@@ -38,12 +40,14 @@ async function captureScreenshot(page, name, action, assertFn) {
   await action();
   await assertFn();
   await page.screenshot({ path: dest, fullPage: false });
+  await page.waitForTimeout(1000);
   console.log(`Screenshot: ${name}.png`);
 }
 
 async function recordTour(page) {
-  await page.locator('#start-tour').click();
+  await page.locator('#start-guided').click();
   await assertOverviewView(page, 'tour step 1');
+  await page.waitForTimeout(1200);
 
   let step = 1;
   const next = page.locator('#tour-next');
@@ -51,6 +55,7 @@ async function recordTour(page) {
     await next.click();
     step += 1;
     await waitForCameraSettled(page);
+    await page.waitForTimeout(1200);
   }
 
   await page.locator('#tour-exit').click();
@@ -107,9 +112,18 @@ async function main() {
       action: async () => {
         await page.click('[data-preset="city_centre"]');
         await waitForCameraSettled(page);
-        await selectCityCentreProject(page);
+        await selectTallestApprovedProject(page);
       },
-      assert: () => assertProjectPanel(page, '03-project-panel'),
+      assert: async () => {
+        await assertProjectPanel(page, '03-project-panel');
+        const project = tallestApprovedByStoreys();
+        const text = await page.locator('#detail-panel').innerText();
+        if (!text.includes(project.projectNo)) {
+          throw new Error(`03-project-panel is missing ${project.projectNo}`);
+        }
+        const height = `Estimated from ${project.storeys} storeys stated in the application`;
+        if (!text.includes(height)) throw new Error(`03-project-panel is missing ${height}`);
+      },
     },
     {
       name: '04-transit-overlay',
