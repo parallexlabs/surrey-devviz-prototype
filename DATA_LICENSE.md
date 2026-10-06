@@ -11,7 +11,7 @@ The following files contain information licensed under the **Open Government Lic
 | File | Source |
 |------|--------|
 | `city_centre_plan.geojson` | [City Centre Plan](https://services5.arcgis.com/YRpe0VKTJytZSSIB/arcgis/rest/services/City%20Centre%20Plan/FeatureServer/0) |
-| `fleetwood_town_centre.geojson` | [Town Centre Densities — Fleetwood](https://services5.arcgis.com/YRpe0VKTJytZSSIB/arcgis/rest/services/Town%20Centre%20Densities/FeatureServer/0) |
+| `fleetwood_town_centre.geojson` | [Town Centre Densities (Fleetwood)](https://services5.arcgis.com/YRpe0VKTJytZSSIB/arcgis/rest/services/Town%20Centre%20Densities/FeatureServer/0) |
 | `campbell_heights_lap.geojson` | [Campbell Heights Local Area Plan](https://services5.arcgis.com/YRpe0VKTJytZSSIB/arcgis/rest/services/Campbell%20Heights%20Local%20Area%20Plan/FeatureServer/0) |
 | `south_campbell_heights_lap.geojson` | [South Campbell Heights Local Area Plan](https://services5.arcgis.com/YRpe0VKTJytZSSIB/arcgis/rest/services/South%20Campbell%20Heights%20Local%20Area%20Plan/FeatureServer/0) |
 | `development_projects.geojson` | [Development Applications](https://services5.arcgis.com/YRpe0VKTJytZSSIB/arcgis/rest/services/Development%20Applications/FeatureServer/0) |

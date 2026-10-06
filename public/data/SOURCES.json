@@ -11,7 +11,7 @@
   {
     "file": "fleetwood_town_centre.geojson",
     "source_url": "https://services5.arcgis.com/YRpe0VKTJytZSSIB/arcgis/rest/services/Town%20Centre%20Densities/FeatureServer/0",
-    "layer": "Town Centre Densities \u2014 Fleetwood",
+    "layer": "Town Centre Densities (Fleetwood)",
     "query": "AREA_NAME='Fleetwood Town Centre'",
     "retrieved_at": "2026-10-06T11:52:05.685752+00:00",
     "feature_count": 2,

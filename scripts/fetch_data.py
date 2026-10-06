@@ -406,7 +406,7 @@ def main():
         "fleetwood_town_centre",
         town_centre_fc,
         LAYERS["town_centre_densities"],
-        "Town Centre Densities — Fleetwood",
+        "Town Centre Densities (Fleetwood)",
         "AREA_NAME='Fleetwood Town Centre'",
         SURREY_LICENCE,
     )
@@ -467,7 +467,7 @@ def main():
         "fleetwood": {
             "bbox": bounds_list(fleetwood_geom),
             "label": label_point(fleetwood_geom),
-            "source": "Town Centre Densities — Fleetwood Town Centre",
+            "source": "Town Centre Densities (Fleetwood) Town Centre",
             "geometry": geometry_json(fleetwood_geom),
             "outline": rounded_geometry(outline_geometry(fleetwood_geom)),
         },
