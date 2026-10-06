@@ -59,6 +59,38 @@ export function projectLabel(props) {
   return no ? `${title} (${no})` : title;
 }
 
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+export function latestRetrievalDate(sources) {
+  let latest = null;
+  for (const source of sources || []) {
+    const time = Date.parse(source?.retrieved_at || '');
+    if (!Number.isFinite(time)) continue;
+    if (!latest || time > latest) latest = time;
+  }
+  if (latest == null) return null;
+  const date = new Date(latest);
+  return `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+}
+
+export function publicDataRetrievedLabel(sources) {
+  const date = latestRetrievalDate(sources);
+  return date ? `Public data retrieved ${date}` : '';
+}
+
 export function pilotAreaLabel(area) {
   const labels = {
     city_centre: 'City Centre',

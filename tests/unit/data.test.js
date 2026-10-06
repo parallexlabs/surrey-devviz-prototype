@@ -1,9 +1,12 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { describe, it, expect } from 'vitest';
 import {
   getSkyTrainStations,
   getSkyTrainLines,
   projectLabel,
   pilotAreaLabel,
+  publicDataRetrievedLabel,
 } from '../../src/data.js';
 
 describe('getSkyTrainStations', () => {
@@ -41,6 +44,15 @@ describe('projectLabel', () => {
     });
     expect(label).toContain('7920-0340');
     expect(label).toContain('Mixed use tower');
+  });
+});
+
+describe('publicDataRetrievedLabel', () => {
+  it('uses the latest retrieval date in SOURCES.json', () => {
+    const sources = JSON.parse(
+      readFileSync(join(process.cwd(), 'public/data/SOURCES.json'), 'utf8'),
+    );
+    expect(publicDataRetrievedLabel(sources)).toBe('Public data retrieved 6 October 2026');
   });
 });
 
