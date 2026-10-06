@@ -3,6 +3,33 @@
 **Built:** 2026-10-06 (local only, not deployed)  
 **Prototype by:** ParalleX Labs Inc. for City of Surrey RFP 1220-030-2026-063
 
+## Pass 5: evaluator path
+
+Pass 4 checks still run after the camera is idle. This pass adds a first-load path and makes the panel say what is measured and what is drawn.
+
+- A Start here bar offers Explore projects, Transit and amenities, 3D City Centre, and Guided tour. It is keyboard operable and can be dismissed.
+- Project titles use the application's own words, preferring the clause after "to permit the development of" or "to permit". The application number stays as secondary text.
+- Height in the panel reads "Estimated from N storeys stated in the application" or "Illustrative height (no height in public data)". The massing legend is unchanged.
+- Status shows the City's own status text with "Source: City of Surrey Development Applications".
+- The legend and the panel say: "400 m (about a 5-minute walk) and 800 m (about a 10-minute walk), straight-line, not a walking route."
+- Data and methodology opens a drawer with sources, licences, the retrieval date, showcase rules, the height method, and limitations.
+- The footer says "Public data retrieved 6 October 2026".
+- With All applications on, phase buttons filter by the City's status text.
+- The address hash restores a project (`#project=` and the application number) or a view preset (`#view=`).
+- On a 390 px screen the Start here actions wrap to two columns and the controls are at least 44 px.
+
+### What the evidence PNGs show
+
+Opened after the recorder passed:
+
+- `01-overview.png`: all of Surrey, with the Fraser along the north edge. The Start here bar is across the top. Readable labels include Whalley, Guildford, Newton, Cloverdale, South Surrey, White Rock, Fraser Heights, Annacis Island, Barnston Island, and Highways 1, 10, 15, 17, 91, and 99. Green project dots run from the river south to the border. The footer reads "Public data retrieved 6 October 2026".
+- `02-city-centre-3d.png`: blue massing around Surrey Central. Readable names include King George Boulevard, University Drive, Old Yale Road, 102 Avenue, 104 Avenue, 132 Street, and Holland Park.
+- `03-project-panel.png`: application 21-0313-00, the tallest approved project by stated storeys (67). The panel shows "Estimated from 67 storeys stated in the application", status "Conditional Approval", "Source: City of Surrey Development Applications", and "Nearest SkyTrain: Surrey Central" at 187 m, with the 400 m and 800 m walk note. A yellow tower stands on the map inside an orange ring. Readable names include King George Boulevard, 102 Avenue, and 137A Street.
+- `04-transit-overlay.png`: City Centre with SkyTrain, FTDA, and amenities on. Readable names include King George Boulevard, University Drive, Old Yale Road, 102 Avenue, Surrey Central, and Holland Park.
+- `05-fleetwood.png`: Fleetwood grid with green massing. Readable names include Fraser Highway, 82 Avenue, 84 Avenue, 88 Avenue, 152 Street, 156 Street, and 160 Street.
+- `06-campbell-heights.png`: south Surrey around the Nicomekl, with green massing. Readable names include Highway 10, Highway 15, 16 Avenue, 32 Avenue, 40 Avenue, Colebrook Road, King George Boulevard, Cloverdale, Sullivan, and Elgin.
+- `07-mobile.png`: 390 px width. Start here wraps to two columns (Explore projects, Transit and amenities, 3D City Centre, Guided tour, Dismiss). A project panel for 19 townhouse units sits over the map. Readable names include King George Boulevard and 112 Avenue.
+
 ## Pass 4: visible frame, not the camera center
 
 ### Root cause
@@ -99,8 +126,10 @@ This is a working static web prototype using **real public data** from City of S
 - Camera presets: Surrey overview, City Centre, Fleetwood, Campbell Heights (smooth fly-to; instant with `prefers-reduced-motion`)
 - Guided tour with data-driven captions
 - At a glance summary panel
-- Project panel with title, application number, description, status, height label, weblinks
-- Proximity tool: straight-line distance to nearest SkyTrain station + 400 m / 800 m rings
+- Project panel with title from the application wording, application number, the City's status, height label, and weblinks
+- Proximity tool: straight-line distance to nearest SkyTrain station, with 400 m (about a 5-minute walk) and 800 m (about a 10-minute walk) rings
+- Start here bar, phase filters when all applications are shown, and shareable `#project=` and `#view=` links
+- Data and methodology drawer, and "Public data retrieved 6 October 2026" in the footer
 - Overlay toggles: SkyTrain, FTDA, City Centre Plan, amenities, existing buildings
 - Massing legend (estimated vs illustrative)
 - Searchable, filterable project list (keyboard operable)
@@ -112,19 +141,19 @@ This is a working static web prototype using **real public data** from City of S
 
 | Test | Result | Path |
 |------|--------|------|
-| Unit tests (`npm test`) | 34/34 passed | `tests/unit/` |
-| E2E tests (`npm run test:e2e`) | 12/12 passed | `tests/e2e/app.spec.js` |
+| Unit tests (`npm test`) | 42/42 passed | `tests/unit/` |
+| E2E tests (`npm run test:e2e`) | 17/17 passed | `tests/e2e/app.spec.js` |
 | axe-core scan | 0 serious/critical violations | `evidence/axe-report.json` |
 | Production build | Success | `dist/` |
 | Recording assertions | All seven screenshots + walkthrough | `npm run record` |
 
-E2E coverage waits for `moveend` and `idle`, then checks the visible map: Surrey Central on screen with at least 10 rendered massing features, Fleetwood and Campbell Heights massing with the center inside each pilot bbox, and the overview framing Surrey without the north side of the Fraser filling the frame. The project panel must be on screen, at least 250px wide, and show "Nearest SkyTrain" with proximity rings rendered.
+E2E coverage waits for `moveend` and `idle`, then checks the visible map: Surrey Central on screen with at least 10 rendered massing features, Fleetwood and Campbell Heights massing with the center inside each pilot bbox, and the overview framing Surrey without the north side of the Fraser filling the frame. The project panel must be on screen, at least 250px wide, and show "Nearest SkyTrain" with proximity rings rendered. New checks cover the Start here bar, the rings sentence, hash restore for a view and for application 21-0313-00, and 44 px targets on a 390 px screen.
 
 ## Evidence
 
 | Asset | Path |
 |-------|------|
-| Walkthrough video (~102 s, 5 MB) | `evidence/walkthrough.mp4` |
+| Walkthrough video (~31 s, 3 MB) | `evidence/walkthrough.mp4` |
 | Screenshot 1: Overview | `evidence/01-overview.png` |
 | Screenshot 2: City Centre 3D | `evidence/02-city-centre-3d.png` |
 | Screenshot 3: Project panel + proximity | `evidence/03-project-panel.png` |
