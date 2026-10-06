@@ -3,6 +3,26 @@
 **Built:** 2026-10-06 (local only, not deployed)  
 **Prototype by:** ParalleX Labs Inc. for City of Surrey RFP 1220-030-2026-063
 
+## Pass 7: Campbell Heights was in the wrong place
+
+The Campbell Heights pilot area was a hand-drawn box, `[-122.82, 49.06, -122.74, 49.11]`. That box lies between Highway 99 and 176 Street, over Grandview Heights and Sunnyside, about 5 to 10 km west of Campbell Heights. The City's open data already has the boundary. The Campbell Heights Local Area Plan runs about -122.708 to -122.680 and 49.038 to 49.082. The South Campbell Heights Local Area Plan runs about -122.702 to -122.680 and 49.020 to 49.040.
+
+Campbell Heights is now the union of those two layers (bounds -122.7080 to -122.6801, 49.0203 to 49.0822). City Centre still comes from the City Centre Plan, and Fleetwood from Town Centre Densities. A project is tagged only when its location falls inside one of those polygons, not when it merely sits in a bounding box. The overview draws the polygons. The Campbell Heights camera is fitted to that polygon. Its centre is about -122.694, 49.051, inside the plan. A point at 192 Street and 32 Avenue (-122.690, 49.054) is inside Campbell Heights. A point at 160 Street and 32 Avenue (-122.776, 49.054) is not.
+
+Dropping the old box, and the projects that only fell inside a padded envelope, leaves 119 active applications. The showcase counts are City Centre 43, Fleetwood Town Centre 2, and Campbell Heights 4 (49 in total).
+
+### What the evidence PNGs show
+
+Opened after the recorder passed. Desktop frames are 1600×1000. The phone frame is 390×844. The walkthrough is about 31 seconds and 3.1 MB.
+
+- `01-overview.png`: Surrey from the Fraser in the north to White Rock in the south. The three pilot areas are irregular plan outlines, not rectangles. City Centre is the northern cluster of blue markers. Fleetwood Town Centre is the small outline east of that. Campbell Heights is the southeast outline, east of Highway 99, with orange markers. Readable names include Guildford, Newton, Cloverdale, White Rock, Annacis Island, Barnston Island, and Highways 1, 10, 15, 17, 91, and 99. At a glance reads 49 showcase projects, Campbell Heights 4, City Centre 43, Fleetwood Town Centre 2. The Start here bar and the footer "Public data retrieved 6 October 2026" are on screen.
+- `02-city-centre-3d.png`: blue massing around the SkyTrain line, with a few green amenity dots. Readable names include King George Boulevard, University Drive, Old Yale Road, 102 Avenue, 104 Avenue, 132 Street, Surrey Central, and Holland Park.
+- `03-project-panel.png`: application 21-0313-00. A yellow tower stands on the map. The panel reads "Estimated from 67 storeys stated in the application", status "Conditional Approval", "Source: City of Surrey Development Applications", and "Nearest SkyTrain: Surrey Central" at 187 m, with the 400 m and 800 m walk note. Readable names include King George Boulevard and 102 Avenue.
+- `04-transit-overlay.png`: the same City Centre massing with SkyTrain, FTDA, City Centre Plan, and amenities checked. Green amenity dots sit with the blue blocks. Readable names include King George Boulevard, University Drive, Old Yale Road, 102 Avenue, 104 Avenue, Surrey Central, and Holland Park.
+- `05-fleetwood.png`: green massing on the Fleetwood grid, with green amenity dots around it. Readable names include Fraser Highway, 80 Avenue, 82 Avenue, 84 Avenue, 88 Avenue, 152 Street, 156 Street, and 160 Street.
+- `06-campbell-heights.png`: the local area plan outline, labelled Campbell Heights, with orange markers inside it. The view centre is on the plan. Rendered street names include 192 Street, 184 Street, 176 Street, 32 Avenue, 40 Avenue, 24 Avenue, and 16 Avenue, plus Highway 99, Grandview, and Hazelmere to the west and Brookswood to the northeast.
+- `07-mobile.png`: 390 px width. Start here wraps to two columns (Explore projects, Transit and amenities, 3D City Centre, Guided tour, Dismiss). A project panel is open over the map and shows Conditional Approval and "Source: City of Surrey Development Applications". Readable names include 104 Avenue. At a glance shows Campbell Heights 4.
+
 ## Pass 6: first impression and the /demos/surrey/ build
 
 The overview no longer paints the amenity layer. Those green dots appear from zoom 13 upward. Below that, showcase projects are circle markers coloured by area, and the three pilot areas are dark blue outlines with one label each: City Centre, Fleetwood Town Centre, and Campbell Heights. The labels are points at the centre of each area, so a name is not repeated across tiles, and they drop off once the map is zoomed in.
@@ -114,24 +134,26 @@ This is a working static web prototype using **real public data** from City of S
 
 | Dataset | Features | Source |
 |---------|----------|--------|
-| Development projects (active) | 184 | City of Surrey Development Applications |
-| Showcase projects (default view) | 58 | Approved applications matching development criteria |
-| City Centre showcase | 54 | |
+| Development projects (active) | 119 | City of Surrey Development Applications, inside the official pilot polygons |
+| Showcase projects (default view) | 49 | Approved applications matching development criteria |
+| City Centre showcase | 43 | |
 | Fleetwood showcase | 2 | |
-| Campbell Heights showcase | 2 | |
+| Campbell Heights showcase | 4 | |
 | Building footprints (context) | 6,877 | City of Surrey Building Footprints (City Centre only) |
 | City Centre Plan areas | 573 | City of Surrey City Centre Plan |
 | Fleetwood Town Centre boundary | 2 | City of Surrey Town Centre Densities |
+| Campbell Heights Local Area Plan | 210 | City of Surrey Campbell Heights Local Area Plan |
+| South Campbell Heights Local Area Plan | 40 | City of Surrey South Campbell Heights Local Area Plan |
 | Frequent Transit Development Areas | 3 | City of Surrey FTDA |
 | SkyTrain lines + stations | 225 | OpenStreetMap |
 | Amenities (libraries, parks, recreation, civic) | 389 | OpenStreetMap |
 
-**Project statuses in data:** Conditional Approval (111), Under Review (25), Initial Review (48).
+**Project statuses in data:** Conditional Approval (81), Under Review (13), Initial Review (25).
 
 **Pilot area definitions:**
-- **City Centre:** extent derived from City Centre Plan layer (`public/data/pilot_areas.json`)
-- **Fleetwood:** extent derived from Town Centre Densities, Fleetwood Town Centre
-- **Campbell Heights:** OSM place boundary not found; envelope derived around Campbell Heights development cluster (documented in `pilot_areas.json`)
+- **City Centre:** City Centre Plan polygons (`public/data/pilot_areas.json`)
+- **Fleetwood:** Town Centre Densities, Fleetwood Town Centre
+- **Campbell Heights:** union of the Campbell Heights Local Area Plan and the South Campbell Heights Local Area Plan. Projects are tagged by point-in-polygon, not by a bounding box.
 
 **3D massing:** Heights are estimated from stated storeys where present (× 3.2 m), otherwise illustrative by building type. Building footprints use `BUILDING_HEIGHT` where present.
 
@@ -159,20 +181,20 @@ This is a working static web prototype using **real public data** from City of S
 
 | Test | Result | Path |
 |------|--------|------|
-| Unit tests (`npm test`) | 44/44 passed | `tests/unit/` |
-| E2E tests (`npm run test:e2e`) | 19/19 passed against `http://localhost:4173/demos/surrey/` | `tests/e2e/app.spec.js` |
+| Unit tests (`npm test`) | 46/46 passed | `tests/unit/` |
+| E2E tests (`npm run test:e2e`) | 20/20 passed against `http://localhost:4173/demos/surrey/` | `tests/e2e/app.spec.js` |
 | axe-core scan | 0 violations | `evidence/axe-report.json` |
 | Root build | Success, no robots meta | `dist/` |
 | Site build | Success, base `/demos/surrey/`, `noindex` | `dist-site/` |
 | Recording assertions | All seven screenshots + walkthrough | `npm run record` |
 
-E2E waits for `moveend` and `idle`, then checks the visible map: Surrey Central on screen with at least 10 rendered massing features, Fleetwood and Campbell Heights massing with the center inside each pilot bbox, and the overview framing Surrey without the north side of the Fraser filling the frame. At the overview, rendered amenity features stay under 30 and the three pilot labels are City Centre, Fleetwood Town Centre, and Campbell Heights. The project panel must be on screen, at least 250px wide, and show "Nearest SkyTrain" with proximity rings rendered. Hash restore keeps `#view=fleetwood` and `#project=21-0313-00` on `/demos/surrey/`. The site page has `<meta name="robots" content="noindex">`. Other checks cover the Start here bar, the rings sentence, and 44 px targets on a 390 px screen.
+E2E waits for `moveend` and `idle`, then checks the visible map: Surrey Central on screen and at least 10 rendered massing features, Fleetwood and Campbell Heights massing with the center inside each pilot area, and the overview framing Surrey without the north side of the Fraser filling the frame. The Campbell Heights centre must lie inside the official plan extent, and every project tagged Campbell Heights must lie inside that polygon. A unit test checks that 192 Street and 32 Avenue is inside Campbell Heights and that 160 Street and 32 Avenue is not. At the overview, rendered amenity features stay under 30 and the three pilot labels are City Centre, Fleetwood Town Centre, and Campbell Heights. The project panel must be on screen, at least 250px wide, and show "Nearest SkyTrain" with proximity rings rendered. Hash restore keeps `#view=fleetwood` and `#project=21-0313-00` on `/demos/surrey/`. The site page has `<meta name="robots" content="noindex">`. Other checks cover the Start here bar, the rings sentence, and 44 px targets on a 390 px screen.
 
 ## Evidence
 
 | Asset | Path |
 |-------|------|
-| Walkthrough video (~30 s, 2.8 MB) | `evidence/walkthrough.mp4` |
+| Walkthrough video (~31 s, 3.1 MB) | `evidence/walkthrough.mp4` |
 | Screenshot 1: Overview | `evidence/01-overview.png` |
 | Screenshot 2: City Centre 3D | `evidence/02-city-centre-3d.png` |
 | Screenshot 3: Project panel + proximity | `evidence/03-project-panel.png` |
@@ -214,10 +236,10 @@ npm run record
 
 ## Known gaps
 
-1. **Campbell Heights boundary** is a derived envelope, not an official City boundary polygon. OSM had no matching place relation.
-2. **11 showcase projects** lack stated storeys in their descriptions and use illustrative height only.
+1. **Pilot outlines follow the City's land-use polygons**, including the gaps between parcels, so the Campbell Heights linework is the plan coverage rather than one simplified ring.
+2. **10 showcase projects** lack stated storeys in their descriptions and use illustrative height only.
 3. **SkyTrain coverage** is from OSM: Expo Line stations in Surrey (Gateway, Surrey Central, King George, Scott Road) plus line segments in the region bbox. Surrey Langley Extension may be incomplete in OSM.
-4. **184 applications** in data exceeds the RFP's 35 to 50 target; the default showcase view shows 58 approved development projects, with all applications available via the switch.
+4. **119 applications** in data exceeds the RFP's 35 to 50 target; the default showcase view shows 49 approved development projects, with all applications available via the switch. Applications outside the three official plan polygons are not included.
 5. **Building context** is City Centre only (6,877 footprints) for performance; Fleetwood and Campbell Heights show projects without existing-building context.
 6. **No routing:** proximity is straight-line distance only, as specified.
 7. **No per-building interactive 3D** for individual buildings: project polygons are extruded; selected buildings from footprints are context layer only.
