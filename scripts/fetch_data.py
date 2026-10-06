@@ -9,7 +9,7 @@ from pathlib import Path
 
 try:
     from shapely import set_precision
-    from shapely.geometry import Point, mapping, shape
+    from shapely.geometry import Point, Polygon, mapping, shape
     from shapely.ops import unary_union
 except ImportError as exc:
     raise SystemExit("shapely is required to union the City plan polygons") from exc
@@ -204,6 +204,92 @@ def geometry_json(geom):
     return mapping(geom)
 
 
+# Closes parcel and road gaps inside a plan. About 20 m east-west at this latitude.
+OUTLINE_GAP = 0.00025
+# Smaller than a city block. Slivers and road centreline gaps are not holes in the plan.
+REAL_HOLE_AREA = 1e-6
+
+
+def polygon_parts(geom):
+    if geom is None or geom.is_empty:
+        return []
+    if geom.geom_type == "Polygon":
+        return [geom]
+    if geom.geom_type == "MultiPolygon":
+        return list(geom.geoms)
+    if geom.geom_type == "GeometryCollection":
+        parts = []
+        for child in geom.geoms:
+            parts.extend(polygon_parts(child))
+        return parts
+    return []
+
+
+def source_has_real_hole(geom, hole):
+    point = hole.representative_point()
+    for part in polygon_parts(geom):
+        for ring in part.interiors:
+            source_hole = Polygon(ring)
+            if source_hole.area < REAL_HOLE_AREA:
+                continue
+            if source_hole.covers(point):
+                return True
+    return False
+
+
+def outline_geometry(geom):
+    """Outer boundary for drawing. Point-in-polygon keeps the full geometry."""
+    parts = [part for part in polygon_parts(geom) if part.area > 1e-12]
+    if not parts:
+        return geom
+    exteriors = unary_union([Polygon(part.exterior) for part in parts])
+    exterior_parts = polygon_parts(exteriors)
+    if len(exterior_parts) == 1:
+        holes = []
+        for ring in exterior_parts[0].interiors:
+            hole = Polygon(ring)
+            if hole.area >= REAL_HOLE_AREA and source_has_real_hole(geom, hole):
+                holes.append(ring)
+        if not holes:
+            return Polygon(exterior_parts[0].exterior)
+        return Polygon(exterior_parts[0].exterior, holes)
+
+    closed = exteriors.buffer(OUTLINE_GAP, join_style=2, mitre_limit=2).buffer(
+        -OUTLINE_GAP, join_style=2, mitre_limit=2
+    )
+    shells = []
+    for part in polygon_parts(closed):
+        if part.area <= 1e-12:
+            continue
+        holes = []
+        for ring in part.interiors:
+            hole = Polygon(ring)
+            if hole.area < REAL_HOLE_AREA or not source_has_real_hole(geom, hole):
+                continue
+            holes.append(ring)
+        shells.append(Polygon(part.exterior, holes) if holes else Polygon(part.exterior))
+    if not shells:
+        return geom
+    biggest = max(part.area for part in shells)
+    shells = [part for part in shells if part.area >= biggest * 0.01]
+    merged = polygonal(unary_union(shells))
+    if not merged.is_valid:
+        merged = polygonal(merged.buffer(0))
+    return merged
+
+
+def rounded_geometry(geom, ndigits=6):
+    data = mapping(geom)
+
+    def walk(coords):
+        if isinstance(coords[0], (int, float)):
+            return [round(float(coords[0]), ndigits), round(float(coords[1]), ndigits)]
+        return [walk(item) for item in coords]
+
+    data["coordinates"] = walk(data["coordinates"])
+    return data
+
+
 def bounds_list(geom):
     minx, miny, maxx, maxy = geom.bounds
     return [round(minx, 6), round(miny, 6), round(maxx, 6), round(maxy, 6)]
@@ -376,18 +462,21 @@ def main():
             "label": label_point(city_centre_geom),
             "source": "City Centre Plan",
             "geometry": geometry_json(city_centre_geom),
+            "outline": rounded_geometry(outline_geometry(city_centre_geom)),
         },
         "fleetwood": {
             "bbox": bounds_list(fleetwood_geom),
             "label": label_point(fleetwood_geom),
             "source": "Town Centre Densities — Fleetwood Town Centre",
             "geometry": geometry_json(fleetwood_geom),
+            "outline": rounded_geometry(outline_geometry(fleetwood_geom)),
         },
         "campbell_heights": {
             "bbox": bounds_list(campbell_geom),
             "label": label_point(campbell_geom),
             "source": "Union of Campbell Heights Local Area Plan and South Campbell Heights Local Area Plan",
             "geometry": geometry_json(campbell_geom),
+            "outline": rounded_geometry(outline_geometry(campbell_geom)),
         },
     }
     with open(DATA_DIR / "pilot_areas.json", "w") as f:

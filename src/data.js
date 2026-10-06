@@ -137,7 +137,7 @@ export function pointInPilotArea(pilotAreas, areaId, lon, lat) {
 export function pilotAreaOutlines(pilotAreas) {
   const features = [];
   for (const [id, area] of Object.entries(pilotAreas || {})) {
-    const geometry = area?.geometry;
+    const geometry = area?.outline || area?.geometry;
     if (!geometry || (geometry.type !== 'Polygon' && geometry.type !== 'MultiPolygon')) continue;
     features.push({
       type: 'Feature',

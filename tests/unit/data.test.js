@@ -68,9 +68,51 @@ describe('pilotAreaLabel', () => {
   });
 });
 
+function polygonsOf(geometry) {
+  if (geometry.type === 'Polygon') return [geometry.coordinates];
+  if (geometry.type === 'MultiPolygon') return geometry.coordinates;
+  return [];
+}
+
+function ringArea(ring) {
+  let sum = 0;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    sum += ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1];
+  }
+  return Math.abs(sum) / 2;
+}
+
+function ringPoint(ring) {
+  const closed =
+    ring.length > 1 &&
+    ring[0][0] === ring[ring.length - 1][0] &&
+    ring[0][1] === ring[ring.length - 1][1];
+  const count = closed ? ring.length - 1 : ring.length;
+  let lon = 0;
+  let lat = 0;
+  for (let i = 0; i < count; i += 1) {
+    lon += ring[i][0];
+    lat += ring[i][1];
+  }
+  return [lon / count, lat / count];
+}
+
+function isRealHole(ring, source) {
+  if (ringArea(ring) < 1e-6) return false;
+  const [lon, lat] = ringPoint(ring);
+  if (geometryContains(source, lon, lat)) return false;
+  return polygonsOf(source).some((polygon) =>
+    polygon.slice(1).some((sourceRing) => {
+      if (ringArea(sourceRing) < 1e-6) return false;
+      return geometryContains({ type: 'Polygon', coordinates: [sourceRing] }, lon, lat);
+    }),
+  );
+}
+
 describe('pilotAreaOutlines', () => {
-  it('draws the official polygon for each pilot area', () => {
-    const areas = JSON.parse(readFileSync(join(process.cwd(), 'public/data/pilot_areas.json'), 'utf8'));
+  const areas = JSON.parse(readFileSync(join(process.cwd(), 'public/data/pilot_areas.json'), 'utf8'));
+
+  it('draws one dissolved outer boundary for each pilot area', () => {
     const outlines = pilotAreaOutlines(areas);
     expect(outlines.features.map((feature) => feature.properties.name).sort()).toEqual([
       'Campbell Heights',
@@ -78,8 +120,32 @@ describe('pilotAreaOutlines', () => {
       'Fleetwood Town Centre',
     ]);
     for (const feature of outlines.features) {
+      const area = areas[feature.properties.id];
+      expect(feature.geometry).toEqual(area.outline);
+      if (polygonsOf(area.geometry).length > 1) {
+        expect(feature.geometry).not.toEqual(area.geometry);
+      }
+    }
+  });
+
+  it('is a single polygon or multipolygon with no internal rings except real holes', () => {
+    const outlines = pilotAreaOutlines(areas);
+    expect(outlines.features).toHaveLength(3);
+    for (const feature of outlines.features) {
       expect(['Polygon', 'MultiPolygon']).toContain(feature.geometry.type);
-      expect(feature.geometry).toEqual(areas[feature.properties.id].geometry);
+      const source = areas[feature.properties.id].geometry;
+      const holes = polygonsOf(feature.geometry).flatMap((polygon) => polygon.slice(1));
+      for (const hole of holes) {
+        expect(isRealHole(hole, source)).toBe(true);
+      }
+      if (polygonsOf(source).length > 1) {
+        const sourceRings = polygonsOf(source).reduce((count, polygon) => count + polygon.length, 0);
+        const outlineRings = polygonsOf(feature.geometry).reduce(
+          (count, polygon) => count + polygon.length,
+          0,
+        );
+        expect(outlineRings).toBeLessThan(sourceRings);
+      }
     }
   });
 });
