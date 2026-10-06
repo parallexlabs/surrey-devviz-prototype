@@ -42,14 +42,14 @@ test.describe('Surrey DevViz prototype', () => {
     page.on('console', (msg) => {
       if (msg.type() === 'error') errors.push(msg.text());
     });
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForSelector('#map', { timeout: 15000 });
     await page.waitForSelector('.project-list li button', { timeout: 15000 });
     expect(errors.filter((e) => !e.includes('favicon'))).toHaveLength(0);
   });
 
   test('camera presets keep the map centered in Surrey', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForSelector('[data-preset="overview"]', { timeout: 15000 });
     await waitForCameraSettled(page);
 
@@ -69,7 +69,7 @@ test.describe('Surrey DevViz prototype', () => {
   });
 
   test('guided tour keeps the map centered in Surrey on every step', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForSelector('#start-tour', { timeout: 15000 });
     await page.locator('#start-tour').click();
     await assertOverviewView(page, 'tour step 1');
@@ -87,7 +87,7 @@ test.describe('Surrey DevViz prototype', () => {
   });
 
   test('selecting project from list shows distance and centers map in Surrey', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForSelector('.project-list li button', { timeout: 15000 });
     await page.click('[data-preset="city_centre"]');
     await assertCityCentreView(page, 'City Centre preset');
@@ -96,7 +96,7 @@ test.describe('Surrey DevViz prototype', () => {
   });
 
   test('layer toggles work', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForSelector('#map', { timeout: 15000 });
     const ftda = page.locator('#toggle-ftda');
     await ftda.check();
@@ -106,7 +106,7 @@ test.describe('Surrey DevViz prototype', () => {
   });
 
   test('keyboard path from skip link to project panel', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForSelector('.project-list li button', { timeout: 15000 });
     await page.keyboard.press('Tab');
     const skipLink = page.locator('.skip-link');
@@ -121,7 +121,7 @@ test.describe('Surrey DevViz prototype', () => {
 
   test('no empty overlay covers the map when project panel is open', async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 1000 });
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForSelector('.project-list li button', { timeout: 15000 });
     await page.click('[data-preset="city_centre"]');
     await waitForCameraSettled(page);
@@ -134,7 +134,7 @@ test.describe('Surrey DevViz prototype', () => {
   });
 
   test('showcase view filters by default and all applications switch works', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForSelector('.project-list li button', { timeout: 15000 });
     const showcaseCount = await page.locator('.project-list li').count();
     expect(showcaseCount).toBeGreaterThan(0);
@@ -154,14 +154,14 @@ test.describe('Surrey DevViz prototype', () => {
   });
 
   test('at a glance summary is shown', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForSelector('#at-a-glance', { timeout: 15000 });
     await expect(page.locator('#at-a-glance')).toContainText(/Showcase projects/i);
     await expect(page.locator('#at-a-glance')).toContainText(/SkyTrain/i);
   });
 
   test('guided tour opens with keyboard controls', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForSelector('#start-tour', { timeout: 15000 });
     await page.locator('#start-tour').click();
     await expect(page.locator('#tour-panel')).toBeVisible();
@@ -174,7 +174,7 @@ test.describe('Surrey DevViz prototype', () => {
   });
 
   test('licence attribution and disclaimer are visible', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await expect(page.locator('.app-footer')).toContainText(
       'Contains information licensed under the Open Government License',
     );
@@ -198,7 +198,7 @@ test.describe('Surrey DevViz prototype', () => {
 
   test('mobile viewport works', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForSelector('#map', { timeout: 15000 });
     await expect(page.locator('.sidebar')).toBeVisible();
     await selectCityCentreProject(page);
@@ -206,7 +206,7 @@ test.describe('Surrey DevViz prototype', () => {
   });
 
   test('start here bar is keyboard operable and dismissible', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForSelector('#start-here', { timeout: 15000 });
     await page.waitForSelector('.project-list li button', { timeout: 15000 });
     await waitForCameraSettled(page);
@@ -245,7 +245,7 @@ test.describe('Surrey DevViz prototype', () => {
   });
 
   test('rings are explained in the legend and the project panel', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForSelector('.rings-legend', { timeout: 15000 });
     await waitForCameraSettled(page);
     await expect(page.locator('.rings-legend')).toHaveText(RINGS_EXPLANATION);
@@ -257,19 +257,19 @@ test.describe('Surrey DevViz prototype', () => {
   });
 
   test('a view hash restores the camera preset', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForSelector('[data-preset="fleetwood"]', { timeout: 15000 });
     await waitForCameraSettled(page);
     await page.click('[data-preset="fleetwood"]');
     await assertPilotMassingView(page, pilotAreas.fleetwood.bbox, 'fleetwood preset');
-    await expect(page).toHaveURL(/#view=fleetwood/);
+    await expect(page).toHaveURL(/\/demos\/surrey\/.*#view=fleetwood/);
     await page.reload();
     await page.waitForFunction(() => window.__map?.getLayer('projects-extrusion'));
     await assertPilotMassingView(page, pilotAreas.fleetwood.bbox, 'fleetwood hash');
   });
 
   test('a project hash restores that application', async ({ page }) => {
-    await page.goto('/#project=21-0313-00');
+    await page.goto('./#project=21-0313-00');
     await page.waitForFunction(() => window.__map?.getLayer('projects-extrusion'));
     await expect(page.locator('#detail-panel')).toBeVisible();
     await expect(page.locator('#detail-content')).toContainText('21-0313-00');
@@ -280,11 +280,16 @@ test.describe('Surrey DevViz prototype', () => {
       'Source: City of Surrey Development Applications',
     );
     await assertProjectPanel(page, 'project hash');
-    await expect(page).toHaveURL(/#project=21-0313-00/);
+    await expect(page).toHaveURL(/\/demos\/surrey\/.*#project=21-0313-00/);
+  });
+
+  test('the published page asks crawlers not to index it', async ({ page }) => {
+    await page.goto('./');
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
   });
 
   test('overview shows the three pilot areas without amenity clutter', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForSelector('[data-preset="overview"]', { timeout: 15000 });
     await page.click('[data-preset="overview"]');
     await assertOverviewView(page, 'pilot overview');
@@ -296,7 +301,7 @@ test.describe('Surrey DevViz prototype', () => {
 
   test('start here fits a 390px screen and touch targets are at least 44px', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForSelector('#start-here button', { timeout: 15000 });
     await waitForCameraSettled(page);
     const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);

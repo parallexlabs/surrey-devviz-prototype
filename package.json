@@ -6,13 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:site": "VITE_BASE=/demos/surrey/ VITE_NOINDEX=1 VITE_OUT_DIR=dist-site vite build",
     "preview": "vite preview",
     "fetch-data": "python3 scripts/fetch_data.py",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:axe": "node scripts/axe-scan.mjs",
     "record": "node scripts/record-walkthrough.mjs",
-    "serve:dist": "vite preview --port 4173"
+    "serve:dist": "vite preview --port 4173",
+    "serve:site": "node scripts/serve-site.mjs"
   },
   "dependencies": {
     "maplibre-gl": "4.7.1"

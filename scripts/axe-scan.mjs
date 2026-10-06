@@ -12,7 +12,7 @@ mkdirSync(EVIDENCE, { recursive: true });
 
 function startServer() {
   return new Promise((resolve) => {
-    const proc = spawn('npm', ['run', 'serve:dist'], {
+    const proc = spawn('npm', ['run', 'serve:site'], {
       cwd: ROOT,
       stdio: 'pipe',
       shell: true,
@@ -26,7 +26,7 @@ async function main() {
   const browser = await chromium.launch();
   const context = await browser.newContext();
   const page = await context.newPage();
-  await page.goto('http://localhost:4173', { waitUntil: 'networkidle' });
+  await page.goto('http://localhost:4173/demos/surrey/', { waitUntil: 'networkidle' });
   await page.waitForSelector('.project-list li button', { timeout: 20000 });
 
   const results = await new AxeBuilder({ page })
@@ -35,7 +35,7 @@ async function main() {
 
   const report = {
     scanned_at: new Date().toISOString(),
-    url: 'http://localhost:4173',
+    url: 'http://localhost:4173/demos/surrey/',
     violations: results.violations,
     passes: results.passes.length,
     incomplete: results.incomplete.length,

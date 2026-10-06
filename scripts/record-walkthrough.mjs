@@ -25,7 +25,7 @@ mkdirSync(VIDEO_DIR, { recursive: true });
 
 function startServer() {
   return new Promise((resolve) => {
-    const proc = spawn('npm', ['run', 'serve:dist'], {
+    const proc = spawn('npm', ['run', 'serve:site'], {
       cwd: ROOT,
       stdio: 'pipe',
       shell: true,
@@ -88,7 +88,7 @@ async function main() {
     window.__cameraInstant = true;
   });
 
-  await page.goto('http://localhost:4173', { waitUntil: 'networkidle' });
+  await page.goto('http://localhost:4173/demos/surrey/', { waitUntil: 'networkidle' });
   await page.waitForSelector('.project-list li button', { timeout: 20000 });
   await waitForCameraSettled(page);
 
@@ -163,7 +163,7 @@ async function main() {
   await page.setViewportSize({ width: 390, height: 844 });
   const mobileShot = join(EVIDENCE, '07-mobile.png');
   if (existsSync(mobileShot)) unlinkSync(mobileShot);
-  await page.goto('http://localhost:4173', { waitUntil: 'networkidle' });
+  await page.goto('http://localhost:4173/demos/surrey/', { waitUntil: 'networkidle' });
   await page.waitForSelector('.project-list li button', { timeout: 15000 });
   await selectCityCentreProject(page);
   await assertProjectPanel(page, '07-mobile');
