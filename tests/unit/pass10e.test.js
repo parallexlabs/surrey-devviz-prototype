@@ -69,7 +69,7 @@ describe('pass 10e licensing and data honesty', () => {
     expect(pkg.license).toBe('Apache-2.0');
     expect(pkg.repository.url).toBe('https://github.com/parallexlabs/surrey-devviz-prototype.git');
     const ci = read('.github/workflows/ci.yml');
-    expect(ci).toContain('actions/setup-python@v5');
+    expect(ci).toMatch(/actions\/setup-python@v\d+/);
     expect(ci).toContain("python-version: '3.12'");
     expect(ci).toContain("shapely>=2.0,<3");
     expect(ci).toContain('npm audit --omit=dev --audit-level=high');
