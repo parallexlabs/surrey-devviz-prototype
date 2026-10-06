@@ -25,30 +25,42 @@ import { buildTourSteps, tourStepCamera } from './tour.js';
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const CAMERA_PRESETS = {
-  overview: { center: [-122.85, 49.17], zoom: 13.5, pitch: 0, bearing: 0 },
+  overview: { center: [-122.8, 49.1], zoom: 11.2, pitch: 0, bearing: 0 },
   city_centre: { center: [-122.85, 49.19], zoom: 15.5, pitch: 30, bearing: -20 },
   fleetwood: { center: [-122.8, 49.16], zoom: 14.5, pitch: 35, bearing: 0 },
-  campbell_heights: { center: [-122.78, 49.085], zoom: 14, pitch: 40, bearing: 10 },
+  campbell_heights: { center: [-122.78, 49.085], zoom: 12.4, pitch: 25, bearing: 0 },
+};
+
+const SURREY_EXTENT = {
+  lonMin: -122.92,
+  lonMax: -122.68,
+  latMin: 49.0,
+  latMax: 49.2,
 };
 
 function applyPilotAreaPresets(pilotAreas) {
   if (!pilotAreas) return;
-  const boxes = [];
   for (const [key, val] of Object.entries(pilotAreas)) {
-    if (!val.bbox) continue;
-    boxes.push(val.bbox);
-    if (CAMERA_PRESETS[key]) {
-      const [w, s, e, n] = val.bbox;
-      CAMERA_PRESETS[key].center = [(w + e) / 2, (s + n) / 2];
-    }
+    if (!val.bbox || !CAMERA_PRESETS[key] || key === 'overview') continue;
+    const [w, s, e, n] = val.bbox;
+    CAMERA_PRESETS[key].center = [(w + e) / 2, (s + n) / 2];
   }
-  if (boxes.length) {
-    const w = Math.min(...boxes.map((b) => b[0]));
-    const s = Math.min(...boxes.map((b) => b[1]));
-    const e = Math.max(...boxes.map((b) => b[2]));
-    const n = Math.max(...boxes.map((b) => b[3]));
-    CAMERA_PRESETS.overview.center = [(w + e) / 2, (s + n) / 2];
-  }
+}
+
+function cameraMovesInstantly(options = {}) {
+  return prefersReducedMotion || options.instant || window.__cameraInstant === true;
+}
+
+function overviewCamera() {
+  if (!map?.cameraForBounds) return CAMERA_PRESETS.overview;
+  const fitted = map.cameraForBounds(
+    [
+      [SURREY_EXTENT.lonMin, SURREY_EXTENT.latMin],
+      [SURREY_EXTENT.lonMax, SURREY_EXTENT.latMax],
+    ],
+    { padding: 16, bearing: 0, pitch: 0 },
+  );
+  return fitted ? { ...fitted, bearing: 0, pitch: 0 } : CAMERA_PRESETS.overview;
 }
 
 const AREA_COLORS = {
@@ -254,12 +266,10 @@ function setupTourControls() {
 }
 
 function flyToPreset(name, options = {}) {
-  const preset = options.camera || CAMERA_PRESETS[name];
+  const preset = options.camera || (name === 'overview' ? overviewCamera() : CAMERA_PRESETS[name]);
   if (!preset || !map) return;
-  const move = prefersReducedMotion || options.instant
-    ? () => map.jumpTo(preset)
-    : () => map.flyTo({ ...preset, duration: 2000 });
-  move();
+  if (cameraMovesInstantly(options)) map.jumpTo(preset);
+  else map.flyTo({ ...preset, duration: 2000 });
   map.once('moveend', () => map.triggerRepaint());
 }
 
@@ -272,6 +282,7 @@ function initMap() {
     pitch: 0,
     bearing: 0,
     antialias: true,
+    preserveDrawingBuffer: true,
   });
 
   map.addControl(new maplibregl.NavigationControl(), 'top-left');
@@ -279,7 +290,9 @@ function initMap() {
   window.__map = map;
 
   map.on('load', () => {
+    map.resize();
     addSourcesAndLayers();
+    flyToPreset('overview', { instant: true });
     map.on('click', 'projects-extrusion', (e) => {
       if (e.features?.length) {
         selectProject(e.features[0].properties.OBJECTID ?? e.features[0].properties.PROJECT_NO);
@@ -520,11 +533,9 @@ function selectProject(id) {
   const applyProjectMapView = () => {
     if (!map?.getSource('proximity-rings') || !center) return;
     map.getSource('proximity-rings').setData(createProximityRingsGeoJSON(center));
-    if (prefersReducedMotion) {
-      map.jumpTo({ center, zoom: 16, pitch: 45, bearing: 0 });
-    } else {
-      map.flyTo({ center, zoom: 16, pitch: 45, bearing: 0, duration: 1500 });
-    }
+    const projectCamera = { center, zoom: 16, pitch: 45, bearing: 0 };
+    if (cameraMovesInstantly()) map.jumpTo(projectCamera);
+    else map.flyTo({ ...projectCamera, duration: 1500 });
     map.once('moveend', () => map.triggerRepaint());
   };
 
