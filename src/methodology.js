@@ -51,6 +51,7 @@ export function methodologyModel(sources, buildId = 'dev') {
           '400 m and 800 m straight-line radius (not walking routes or times).',
           'The City Centre Plan layer uses the bundled snapshot. Its retrieval date is recorded in SOURCES.json.',
           'Existing building footprints are shown for City Centre only.',
+          "The City's application-record links separate their two values with a space; the prototype joins them with & so each link opens the matching record.",
           'This prototype is not affiliated with or endorsed by the City of Surrey and is not a regulatory record.',
         ],
       },

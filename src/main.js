@@ -414,7 +414,10 @@ function setupTabs() {
 
 function setupFilters() {
   document.getElementById('search').addEventListener('input', renderProjectList);
-  document.getElementById('filter-area').addEventListener('change', renderProjectList);
+  document.getElementById('filter-area').addEventListener('change', (event) => {
+    renderProjectList();
+    renderAreaCard(AREA_BY_PRESET[event.target.value] || null);
+  });
   document.getElementById('filter-status').addEventListener('change', () => {
     updateMapFilter();
     renderProjectList();

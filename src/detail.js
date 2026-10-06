@@ -8,6 +8,10 @@ import {
   skytrainStationLine,
 } from './copy.js';
 
+const CITY_RECORD_HOST = 'citizenportal.surrey.ca';
+const CITY_RECORD_PATH = '/publicProjectForward.html';
+const CITY_RECORD_QUERY = /^year=(\d{2})(?:\s+|&)seq=(\d{4})$/;
+
 export function safeHttpUrl(value) {
   if (typeof value !== 'string') return null;
   const raw = value.trim();
@@ -20,6 +24,31 @@ export function safeHttpUrl(value) {
   } catch {
     return null;
   }
+}
+
+function cityRecordHref(value) {
+  if (typeof value !== 'string') return null;
+  const raw = value.trim();
+  if (!raw || /[\u0000-\u001F\u007F]/.test(raw)) return null;
+  const queryAt = raw.indexOf('?');
+  if (queryAt < 0) return null;
+  const base = raw.slice(0, queryAt);
+  const match = CITY_RECORD_QUERY.exec(raw.slice(queryAt + 1));
+  if (!match || /\s/.test(base)) return null;
+  try {
+    const url = new URL(base);
+    if (url.protocol !== 'https:' || url.host !== CITY_RECORD_HOST) return null;
+    if (url.username || url.password || url.search || url.hash) return null;
+    if (!url.pathname.endsWith(CITY_RECORD_PATH)) return null;
+    url.search = `?year=${match[1]}&seq=${match[2]}`;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+export function cityRecordUrl(value) {
+  return cityRecordHref(value) ?? safeHttpUrl(value);
 }
 
 export function isHttpUrl(value) {
@@ -36,7 +65,7 @@ export function plainDescription(description) {
 export function projectPanelModel(properties, nearest) {
   const status = properties?.STATUS || 'Not provided';
   const stationName = nearest?.station?.properties?.name || 'SkyTrain station';
-  const applicationUrl = safeHttpUrl(properties?.WEBLINK);
+  const applicationUrl = cityRecordUrl(properties?.WEBLINK);
   const documentsUrl = safeHttpUrl(properties?.APPLICATION_DOCUMENTS_WEBLINK);
   return {
     title: projectPanelTitle(properties?.DESCRIPTION),

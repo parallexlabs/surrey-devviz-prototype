@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { isHttpUrl, projectPanelModel, safeHttpUrl } from '../../src/detail.js';
+import { cityRecordUrl, isHttpUrl, projectPanelModel, safeHttpUrl } from '../../src/detail.js';
 import { methodologyModel } from '../../src/methodology.js';
 import { renderStaticSummary } from '../../src/staticSummary.js';
 import { getSkyTrainStations } from '../../src/data.js';
@@ -10,12 +10,12 @@ import { computeProjectHeight } from '../../src/heights.js';
 const root = process.cwd();
 const read = (name) => JSON.parse(readFileSync(join(root, 'public/data', name), 'utf8'));
 
+const RECORD = 'https://citizenportal.surrey.ca/citizenportal/integration/publicProjectForward.html';
+
 describe('city application links', () => {
   it('accepts only http and https weblinks', () => {
     expect(isHttpUrl('https://citizenportal.surrey.ca/app?year=21 seq=0313')).toBe(true);
-    expect(safeHttpUrl('https://citizenportal.surrey.ca/app?year=21 seq=0313')).toBe(
-      'https://citizenportal.surrey.ca/app?year=21%20seq=0313',
-    );
+    expect(cityRecordUrl(`${RECORD}?year=21 seq=0313`)).toBe(`${RECORD}?year=21&seq=0313`);
     expect(safeHttpUrl('HTTPS://Example.com/Path')).toBe('https://example.com/Path');
     expect(safeHttpUrl('http://user:pass@example.com/')).toBeNull();
     expect(safeHttpUrl('java\nscript:alert(1)')).toBeNull();
@@ -25,6 +25,82 @@ describe('city application links', () => {
     expect(isHttpUrl('/relative')).toBe(false);
     expect(isHttpUrl('')).toBe(false);
     expect(isHttpUrl(null)).toBe(false);
+  });
+
+  it('turns every City weblink into a record link with year and seq', () => {
+    const projects = read('development_projects.geojson');
+    expect(projects.features).toHaveLength(119);
+    for (const feature of projects.features) {
+      const { WEBLINK, PROJECT_NO } = feature.properties;
+      const href = cityRecordUrl(WEBLINK);
+      expect(href).not.toBeNull();
+      expect(href).not.toContain('%20');
+      const url = new URL(href);
+      const [year, seq] = PROJECT_NO.split('-');
+      expect(url.host).toBe('citizenportal.surrey.ca');
+      expect(url.pathname.endsWith('/publicProjectForward.html')).toBe(true);
+      expect([...url.searchParams.keys()]).toEqual(['year', 'seq']);
+      expect(url.searchParams.get('year')).toBe(year);
+      expect(url.searchParams.get('seq')).toBe(seq);
+      expect(projectPanelModel(feature.properties, null).applicationUrl).toBe(href);
+    }
+  });
+
+  it('accepts the record query with & or any run of spaces', () => {
+    expect(cityRecordUrl(`${RECORD}?year=21&seq=0313`)).toBe(`${RECORD}?year=21&seq=0313`);
+    expect(cityRecordUrl(`  ${RECORD}?year=21   seq=0313  `)).toBe(`${RECORD}?year=21&seq=0313`);
+  });
+
+  it('leaves every other value to safeHttpUrl unchanged', () => {
+    expect(cityRecordUrl('https://citizenportal.surrey.ca/app?year=21 seq=0313')).toBe(
+      'https://citizenportal.surrey.ca/app?year=21%20seq=0313',
+    );
+    expect(cityRecordUrl(`${RECORD.replace('https:', 'http:')}?year=21 seq=0313`)).toBe(
+      'http://citizenportal.surrey.ca/citizenportal/integration/publicProjectForward.html?year=21%20seq=0313',
+    );
+    expect(cityRecordUrl(`${RECORD.replace('https://', 'https://user:pass@')}?year=21 seq=0313`)).toBeNull();
+    expect(cityRecordUrl(`${RECORD}?year=21\tseq=0313`)).toBeNull();
+    expect(cityRecordUrl(`${RECORD}?year=21 seq=0313\n`)).toBe(`${RECORD}?year=21&seq=0313`);
+    expect(cityRecordUrl(`${RECORD}?year=21\u0000seq=0313`)).toBeNull();
+    expect(
+      cityRecordUrl('https://example.com/citizenportal/integration/publicProjectForward.html?year=21 seq=0313'),
+    ).toBe('https://example.com/citizenportal/integration/publicProjectForward.html?year=21%20seq=0313');
+    expect(cityRecordUrl('javascript:alert(1)')).toBeNull();
+
+    const unchanged = [
+      'https://citizenportal.surrey.ca/app?year=21 seq=0313',
+      'https://citizenportal.surrey.ca/record',
+      `${RECORD}?year=21 seq=0313&extra=1`,
+      `${RECORD}?year=2021 seq=0313`,
+      `${RECORD}?year=21 seq=313`,
+      `${RECORD}?seq=0313 year=21`,
+      `${RECORD}?year=21 seq=0313#top`,
+      `${RECORD}?year=21&&seq=0313`,
+      `${RECORD}x?year=21 seq=0313`,
+      `${RECORD}`,
+      `${RECORD.replace('https:', 'http:')}?year=21 seq=0313`,
+      `${RECORD.replace('https://', 'https://user:pass@')}?year=21 seq=0313`,
+      `${RECORD.replace('https://', 'https://user@')}?year=21 seq=0313`,
+      `${RECORD.replace('surrey.ca', 'surrey.ca:8443')}?year=21 seq=0313`,
+      `${RECORD}?year=21\tseq=0313`,
+      `${RECORD}?year=21\u007Fseq=0313`,
+      'https://citizenportal.surrey.ca.example.com/citizenportal/integration/publicProjectForward.html?year=21 seq=0313',
+      'https://example.com/citizenportal/integration/publicProjectForward.html?year=21 seq=0313',
+      'https://citizenportal.surrey.ca/a b/publicProjectForward.html?year=21 seq=0313',
+      'HTTPS://Example.com/Path',
+      'http://user:pass@example.com/',
+      'java\nscript:alert(1)',
+      'javascript:alert(1)',
+      'data:text/html,hi',
+      '/relative',
+      '',
+      null,
+      undefined,
+      42,
+    ];
+    for (const value of unchanged) {
+      expect(cityRecordUrl(value)).toBe(safeHttpUrl(value));
+    }
   });
 
   it('builds the presentation panel from the record', () => {
@@ -108,6 +184,9 @@ describe('methodology delivery section', () => {
     const limits = model.sections.find((section) => section.heading === 'Limitations');
     expect(limits.paragraphs.join(' ')).toContain(
       'uses the bundled snapshot',
+    );
+    expect(limits.paragraphs).toContain(
+      "The City's application-record links separate their two values with a space; the prototype joins them with & so each link opens the matching record.",
     );
   });
 });

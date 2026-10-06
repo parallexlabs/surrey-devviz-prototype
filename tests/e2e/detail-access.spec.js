@@ -36,3 +36,25 @@ test('showcase facts and source links are inside the modal', async ({ page }) =>
   await page.keyboard.press('Escape');
   await expect(page.locator('#start-showcase')).toBeFocused();
 });
+
+test('application record link joins year and seq with &', async ({ page }) => {
+  await page.goto('./#project=21-0313-00');
+  const panel = page.locator('#detail-panel');
+  await expect(panel).toBeVisible();
+  const record = panel.getByRole('link', { name: "View the City's application record" });
+  await expect(record).toHaveAttribute('href', /publicProjectForward\.html\?year=21&seq=0313$/);
+});
+
+test('area card follows the area filter', async ({ page }) => {
+  await page.goto('./');
+  const card = page.locator('#area-card');
+  const filter = page.locator('#filter-area');
+  await filter.selectOption('campbell_heights');
+  await expect(card).toBeVisible();
+  await expect(card.locator('h2')).toHaveText('Campbell Heights');
+  const listed = await page.locator('.project-list li').count();
+  expect(listed).toBeGreaterThan(0);
+  await expect(card.locator('.area-count')).toHaveText(`${listed} selected records in this prototype`);
+  await filter.selectOption('');
+  await expect(card).toBeHidden();
+});
