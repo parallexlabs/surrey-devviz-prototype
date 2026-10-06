@@ -25,11 +25,31 @@ import { buildTourSteps, tourStepCamera } from './tour.js';
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const CAMERA_PRESETS = {
-  overview: { center: [-122.85, 49.17], zoom: 10.5, pitch: 0, bearing: 0 },
-  city_centre: { center: [-122.85, 49.19], zoom: 14.5, pitch: 55, bearing: -20 },
-  fleetwood: { center: [-122.8, 49.16], zoom: 14.5, pitch: 50, bearing: 0 },
-  campbell_heights: { center: [-122.78, 49.085], zoom: 14, pitch: 50, bearing: 10 },
+  overview: { center: [-122.85, 49.17], zoom: 13.5, pitch: 0, bearing: 0 },
+  city_centre: { center: [-122.85, 49.19], zoom: 15.5, pitch: 30, bearing: -20 },
+  fleetwood: { center: [-122.8, 49.16], zoom: 14.5, pitch: 35, bearing: 0 },
+  campbell_heights: { center: [-122.78, 49.085], zoom: 14, pitch: 40, bearing: 10 },
 };
+
+function applyPilotAreaPresets(pilotAreas) {
+  if (!pilotAreas) return;
+  const boxes = [];
+  for (const [key, val] of Object.entries(pilotAreas)) {
+    if (!val.bbox) continue;
+    boxes.push(val.bbox);
+    if (CAMERA_PRESETS[key]) {
+      const [w, s, e, n] = val.bbox;
+      CAMERA_PRESETS[key].center = [(w + e) / 2, (s + n) / 2];
+    }
+  }
+  if (boxes.length) {
+    const w = Math.min(...boxes.map((b) => b[0]));
+    const s = Math.min(...boxes.map((b) => b[1]));
+    const e = Math.max(...boxes.map((b) => b[2]));
+    const n = Math.max(...boxes.map((b) => b[3]));
+    CAMERA_PRESETS.overview.center = [(w + e) / 2, (s + n) / 2];
+  }
+}
 
 const AREA_COLORS = {
   city_centre: { estimated: '#1e6fd4', illustrative: '#8eb8e8' },
@@ -256,6 +276,7 @@ function initMap() {
 
   map.addControl(new maplibregl.NavigationControl(), 'top-left');
   map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+  window.__map = map;
 
   map.on('load', () => {
     addSourcesAndLayers();
@@ -496,16 +517,21 @@ function selectProject(id) {
   document.getElementById('detail-panel').hidden = false;
   setProjectHighlight(feature);
 
-  if (map?.loaded()) {
-    if (center && map.getSource('proximity-rings')) {
-      map.getSource('proximity-rings').setData(createProximityRingsGeoJSON(center));
-      if (prefersReducedMotion) {
-        map.jumpTo({ center, zoom: 16, pitch: 50 });
-      } else {
-        map.flyTo({ center, zoom: 16, pitch: 50, duration: 1500 });
-      }
-      map.once('moveend', () => map.triggerRepaint());
+  const applyProjectMapView = () => {
+    if (!map?.getSource('proximity-rings') || !center) return;
+    map.getSource('proximity-rings').setData(createProximityRingsGeoJSON(center));
+    if (prefersReducedMotion) {
+      map.jumpTo({ center, zoom: 16, pitch: 45, bearing: 0 });
+    } else {
+      map.flyTo({ center, zoom: 16, pitch: 45, bearing: 0, duration: 1500 });
     }
+    map.once('moveend', () => map.triggerRepaint());
+  };
+
+  if (map?.getSource('proximity-rings')) {
+    applyProjectMapView();
+  } else if (map) {
+    map.once('load', applyProjectMapView);
   }
 
   let proximityHtml = '';
@@ -676,15 +702,8 @@ async function main() {
   };
   window.__skytrainStationsFc = { type: 'FeatureCollection', features: stations };
   window.__amenitiesFc = amenities;
-
-  if (pilotAreas) {
-    for (const [key, val] of Object.entries(pilotAreas)) {
-      if (val.bbox && CAMERA_PRESETS[key]) {
-        const [w, s, e, n] = val.bbox;
-        CAMERA_PRESETS[key].center = [(w + e) / 2, (s + n) / 2];
-      }
-    }
-  }
+  window.__pilotAreasMeta = pilotAreas;
+  applyPilotAreaPresets(pilotAreas);
 
   populateStatusFilter();
   renderProjectList();

@@ -113,7 +113,7 @@ export function tourStepCamera(step, pilotAreas, projectsFc) {
         String(f.properties.OBJECTID ?? f.properties.PROJECT_NO) === String(step.focusId),
     );
     const center = feature ? featureCentroid(feature) : null;
-    if (center) return { center, zoom: 15.5, pitch: 55, bearing: -15 };
+    if (center) return { center, zoom: 16, pitch: 45, bearing: -10 };
   }
   return null;
 }
