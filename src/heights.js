@@ -1,3 +1,5 @@
+import { estimatedHeightLabel, ILLUSTRATIVE_HEIGHT_LABEL } from './copy.js';
+
 const STOREY_HEIGHT_M = 3.2;
 
 const WORD_NUMBERS = {
@@ -76,7 +78,7 @@ export function computeProjectHeight(description) {
       height_m: Math.round(storeys * STOREY_HEIGHT_M * 10) / 10,
       height_source: 'estimated',
       storeys,
-      height_label: 'Height estimated from the storeys stated in the application',
+      height_label: estimatedHeightLabel(storeys),
     };
   }
   const height_m = illustrativeHeightMeters(description);
@@ -84,7 +86,7 @@ export function computeProjectHeight(description) {
     height_m,
     height_source: 'illustrative',
     storeys: null,
-    height_label: 'Illustrative height',
+    height_label: ILLUSTRATIVE_HEIGHT_LABEL,
   };
 }
 
