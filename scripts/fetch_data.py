@@ -28,6 +28,17 @@ SURREY_LICENCE = (
 OSM_LICENCE = "© OpenStreetMap contributors (ODbL)"
 OSM_LICENCE_URL = "https://opendatacommons.org/licenses/odbl/1-0/"
 
+PROJECT_CITY_FIELDS = (
+    "OBJECTID",
+    "PROJECT_NO",
+    "DESCRIPTION",
+    "STATUS",
+    "WEBLINK",
+    "APPLICATION_DOCUMENTS_WEBLINK",
+)
+PROJECT_DERIVED_FIELDS = ("assign_lon", "assign_lat", "pilot_area")
+STALE_PROJECT_FIELDS = ("height_m", "height_source", "storeys", "height_label")
+
 AMENITIES_PROPERTY_ALLOWLIST = frozenset(
     {
         "osm_id",
@@ -167,6 +178,24 @@ def arcgis_match_count(layer_url, where, envelope=None, get_json=None):
     if not isinstance(count, int) or count < 0:
         raise ArcGISError(f"ArcGIS count missing: {data}")
     return count
+
+
+def development_project_properties(properties, assign_lon, assign_lat, pilot_area):
+    cleaned = {}
+    for key in PROJECT_CITY_FIELDS:
+        if key in properties:
+            cleaned[key] = properties[key]
+    cleaned["assign_lon"] = assign_lon
+    cleaned["assign_lat"] = assign_lat
+    cleaned["pilot_area"] = pilot_area
+    return cleaned
+
+
+def note_kept_previous(entry, attempted_at):
+    kept = dict(entry)
+    kept["kept_previous"] = True
+    kept["refresh_attempted_at"] = attempted_at
+    return kept
 
 
 def feature_identity(item):
@@ -711,9 +740,12 @@ def refresh_data_files():
         rlon, rlat = round(lon, 6), round(lat, 6)
         if not pilot_geoms[area_name].covers(Point(rlon, rlat)):
             rlon, rlat = lon, lat
-        feature["properties"]["assign_lon"] = rlon
-        feature["properties"]["assign_lat"] = rlat
-        feature["properties"]["pilot_area"] = area_name
+        feature["properties"] = development_project_properties(
+            feature.get("properties") or {},
+            rlon,
+            rlat,
+            area_name,
+        )
         counts[area_name] += 1
         assigned.append(feature)
     for name, count in counts.items():
@@ -774,7 +806,7 @@ def refresh_data_files():
             return
         for entry in previous_sources:
             if entry.get("file") == filename:
-                SOURCES.append(entry)
+                SOURCES.append(note_kept_previous(entry, datetime.now(timezone.utc).isoformat()))
                 print(f"  kept previous {filename}")
                 return
 

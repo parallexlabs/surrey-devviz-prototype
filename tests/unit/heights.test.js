@@ -17,6 +17,7 @@ describe('parseStoreys', () => {
     expect(parseStoreys('twenty one storey tower')).toBe(21);
     expect(parseStoreys('sixty seven storey tower')).toBe(67);
     expect(parseStoreys('sixty-seven storey tower')).toBe(67);
+    expect(parseStoreys('ninety-nine storey tower')).toBe(99);
   });
 
   it('returns null when no storeys stated', () => {
@@ -33,6 +34,9 @@ describe('parseStoreys', () => {
     expect(parseStoreys('2-storey building with 6-storey parking structure')).toBe(2);
     expect(parseStoreys('6-storey parking structure')).toBeNull();
     expect(parseStoreys('2 storeys of underground parking')).toBeNull();
+    expect(parseStoreys('six storeys of underground parking')).toBeNull();
+    expect(parseStoreys('six-storey above-ground parking structure')).toBeNull();
+    expect(parseStoreys('one hundred and seven storey tower')).toBeNull();
     expect(parseStoreys('3-storey podium and 40-storey tower')).toBe(40);
     expect(parseStoreys('three-storey podium and 40-storey tower')).toBe(40);
     expect(parseStoreys('21-storey tower')).toBe(21);

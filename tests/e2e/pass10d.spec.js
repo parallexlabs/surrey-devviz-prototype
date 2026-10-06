@@ -7,10 +7,12 @@ test('map controls stay inside a short desktop viewport', async ({ page }) => {
   const controls = page.locator('.map-controls');
   const metrics = await controls.evaluate((el) => ({
     overflow: getComputedStyle(el).overflowY,
+    overscroll: getComputedStyle(el).overscrollBehavior,
     scroll: el.scrollHeight,
     client: el.clientHeight,
   }));
   expect(metrics.overflow).toBe('auto');
+  expect(metrics.overscroll).toBe('contain');
   expect(metrics.scroll).toBeGreaterThan(metrics.client);
   const legend = page.locator('.rings-legend');
   await legend.scrollIntoViewIfNeeded();

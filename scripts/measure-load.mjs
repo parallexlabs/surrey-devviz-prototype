@@ -48,7 +48,7 @@ const atMeaningful = await page.evaluate(() =>
   performance.getEntriesByType('resource').reduce((sum, entry) => sum + (entry.transferSize || 0), 0),
 );
 
-await page.waitForFunction(() => window.__overlaysReady === true, { timeout: 60000 });
+await page.waitForFunction(() => window.__overlaysReady === true, null, { timeout: 60000 });
 await page.waitForLoadState('networkidle');
 const paints = await page.evaluate(() => {
   const paint = performance.getEntriesByType('paint');

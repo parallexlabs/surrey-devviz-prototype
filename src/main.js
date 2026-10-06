@@ -439,6 +439,7 @@ function setupOverlayToggles() {
   };
   for (const [id, layers] of Object.entries(toggles)) {
     document.getElementById(id).addEventListener('change', (e) => {
+      if (id === 'toggle-buildings' && e.target.checked) beginBuildingsLoad();
       const vis = e.target.checked ? 'visible' : 'none';
       for (const layer of layers) {
         if (map?.getLayer(layer)) map.setLayoutProperty(layer, 'visibility', vis);
@@ -706,7 +707,10 @@ async function initMap() {
 
   map.addControl(new maplibregl.NavigationControl(), 'top-left');
   const mapAttribution =
-    '<a href="https://maplibre.org/" target="_blank" rel="noopener noreferrer">MapLibre<span class="visually-hidden"> (opens in a new tab)</span></a> | OpenFreeMap | OpenMapTiles | <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors<span class="visually-hidden"> (opens in a new tab)</span></a>';
+    '<a href="https://maplibre.org/" target="_blank" rel="noopener noreferrer">MapLibre<span class="visually-hidden"> (opens in a new tab)</span></a> | ' +
+    '<a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap<span class="visually-hidden"> (opens in a new tab)</span></a> ' +
+    '<a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">© OpenMapTiles<span class="visually-hidden"> (opens in a new tab)</span></a> ' +
+    '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors<span class="visually-hidden"> (opens in a new tab)</span></a>';
   map.addControl(
     new maplibregl.AttributionControl({
       compact: false,
@@ -1460,7 +1464,7 @@ function renderAbout() {
     <p><a href="${escapeAttr(readmeHref)}">OpenStreetMap data files and licence</a></p>
     <p>${escapeHtml(ACCESSIBILITY_STATEMENT)}</p>
     <p>Data: City of Surrey Open Data and ${externalAnchor('https://www.openstreetmap.org/copyright', '© OpenStreetMap contributors')}. Estimated heights use stated storeys x 3.2 m. Illustrative heights are used when no storey count could be read. ${escapeHtml(EXTRUSION_NAME)}.</p>
-    <h3>Data sources (${escapeHtml(projectsFc.features.length)} applications)</h3>
+    <h2>Data sources (${escapeHtml(projectsFc.features.length)} applications)</h2>
     ${licenceHtml}
   `;
 }
@@ -1612,9 +1616,29 @@ function showOverlayStatus(message) {
   controls.prepend(status);
 }
 
+const OVERLAY_FAILURE = 'Optional overlays could not load. Projects, civic places and SkyTrain remain available. Reload to retry.';
+
+let buildingsPromise = null;
+
+function beginBuildingsLoad() {
+  if (!buildingsPromise) {
+    buildingsPromise = loadGeoJSON('building_footprints')
+      .then((buildings) => {
+        buildingsFc = buildings;
+        if (map?.getSource('buildings')) map.getSource('buildings').setData(buildings);
+        publishOverlays();
+      })
+      .catch((error) => {
+        console.error(error);
+        markOverlayFailed('buildings');
+        showOverlayStatus(OVERLAY_FAILURE);
+      });
+  }
+  return buildingsPromise;
+}
+
 async function loadDeferredOverlays() {
   const jobs = [
-    { key: 'buildings', name: 'building_footprints', source: 'buildings', assign: (fc) => { buildingsFc = fc; } },
     { key: 'plan', name: 'city_centre_plan', source: 'city-centre-plan', assign: (fc) => { planFc = fc; } },
     { key: 'ftda', name: 'ftda', source: 'ftda', assign: (fc) => { ftdaFc = fc; } },
     { key: 'amenities', name: 'amenities', source: 'amenities', assign: (fc) => { amenitiesFc = fc; } },
@@ -1631,12 +1655,11 @@ async function loadDeferredOverlays() {
     failed.push(job.key);
     markOverlayFailed(job.key);
   });
-  if (failed.length) {
-    showOverlayStatus('Optional overlays could not load. Projects, civic places and SkyTrain remain available. Reload to retry.');
-  }
+  if (failed.length) showOverlayStatus(OVERLAY_FAILURE);
   overlaysReady = true;
   planLive = false;
   publishOverlays();
+  if (document.getElementById('toggle-buildings')?.checked) beginBuildingsLoad();
 }
 
 async function refreshCityCentrePlan(plan) {

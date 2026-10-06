@@ -385,5 +385,52 @@ class StagedRefreshTests(unittest.TestCase):
             self.assertIn("development_projects.geojson", (data / "SOURCES.json").read_text(encoding="utf-8"))
 
 
+class ProjectFieldTests(unittest.TestCase):
+    def test_pipeline_drops_stale_height_fields(self):
+        cleaned = fetch_data.development_project_properties(
+            {
+                "OBJECTID": 207,
+                "PROJECT_NO": "19-0234-00",
+                "DESCRIPTION": "a 43-storey residential apartment building",
+                "STATUS": "Conditional Approval",
+                "WEBLINK": "https://example.test/a",
+                "APPLICATION_DOCUMENTS_WEBLINK": "https://example.test/b",
+                "height_m": 21.0,
+                "height_source": "illustrative",
+                "storeys": 43,
+                "height_label": "stale",
+            },
+            -122.841,
+            49.191,
+            "city_centre",
+        )
+        self.assertEqual(
+            set(cleaned),
+            set(fetch_data.PROJECT_CITY_FIELDS) | set(fetch_data.PROJECT_DERIVED_FIELDS),
+        )
+        self.assertFalse(set(cleaned) & set(fetch_data.STALE_PROJECT_FIELDS))
+        self.assertEqual(cleaned["assign_lon"], -122.841)
+        self.assertEqual(cleaned["pilot_area"], "city_centre")
+
+    def test_shipped_projects_omit_stale_height_fields(self):
+        fc = json.loads((fetch_data.DATA_DIR / "development_projects.geojson").read_text(encoding="utf-8"))
+        allowed = set(fetch_data.PROJECT_CITY_FIELDS) | set(fetch_data.PROJECT_DERIVED_FIELDS)
+        self.assertEqual(len(fc["features"]), 119)
+        for feature in fc["features"]:
+            self.assertTrue(set(feature["properties"]) <= allowed)
+
+    def test_kept_previous_records_the_failed_refresh_without_changing_the_old_date(self):
+        original = {
+            "file": "skytrain.geojson",
+            "retrieved_at": "2026-10-06T05:58:23.972485+00:00",
+        }
+        kept = fetch_data.note_kept_previous(original, "2026-10-06T12:00:00+00:00")
+        self.assertEqual(original["retrieved_at"], "2026-10-06T05:58:23.972485+00:00")
+        self.assertNotIn("kept_previous", original)
+        self.assertTrue(kept["kept_previous"])
+        self.assertEqual(kept["refresh_attempted_at"], "2026-10-06T12:00:00+00:00")
+        self.assertEqual(kept["retrieved_at"], original["retrieved_at"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -43,3 +43,9 @@ The same file names, attribution, and licence link ship beside the data in [publ
 The interactive map loads vector tiles and a style from [OpenFreeMap](https://openfreemap.org/) (`https://tiles.openfreemap.org/styles/liberty`). That style uses [OpenMapTiles](https://openmaptiles.org/) data derived from OpenStreetMap.
 
 When the map is displayed, the attribution control lists **MapLibre**, **OpenFreeMap**, **OpenMapTiles**, and **OpenStreetMap**. Reproduce that attribution if you embed or redistribute map views built from this prototype.
+
+OpenMapTiles asks that the credit link to https://openmaptiles.org/ and that static images carry the same credit in nearby text. The in-map credit links to OpenMapTiles and to the OpenStreetMap copyright page.
+
+## Screenshots and preview image
+
+`docs/01-overview.jpg`, `docs/03-project-panel.jpg` and `docs/07-mobile.jpg` (and `public/og.png` where it shows the map) are rendered from this map. They contain basemap tiles (© OpenMapTiles, © OpenStreetMap contributors, served by OpenFreeMap) and City of Surrey open data layers. Keep this notice, or an equivalent caption, next to any copy of them.

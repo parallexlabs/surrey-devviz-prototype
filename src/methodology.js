@@ -14,7 +14,8 @@ export function methodologyModel(sources, buildId = 'dev') {
     const name = source.layer || source.file;
     const licence = source.licence || 'Licence not recorded.';
     const count = source.feature_count ?? 0;
-    return `${name}: ${count} features. ${licence}${when ? ` Retrieved ${when}.` : ''}`;
+    const kept = source.kept_previous ? ' Kept from an earlier run after a failed refresh.' : '';
+    return `${name}: ${count} features. ${licence}${when ? ` Retrieved ${when}.` : ''}${kept}`;
   });
 
   return {

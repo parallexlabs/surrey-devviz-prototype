@@ -24,8 +24,13 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - run: python3 -m pip install shapely
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: python3 -m pip install 'shapely>=2.0,<3'
       - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm test
       - run: npm run build
       - run: npm run build:site
@@ -40,3 +45,7 @@ jobs:
           grep -q 'OpenStreetMap contributors' dist-site/data/README.md
           grep -q 'opendatacommons.org/licenses/odbl' dist-site/data/README.md
           grep -q 'Open Government License' dist-site/data/README.md
+          ! grep -q '"height_m"' dist-site/data/development_projects.geojson
+          ! grep -q '"height_source"' dist-site/data/development_projects.geojson
+          ! grep -q '"storeys"' dist-site/data/development_projects.geojson
+          ! grep -q '"height_label"' dist-site/data/development_projects.geojson

@@ -25,6 +25,8 @@ The checks that were run, and what was not done, are in [VERIFICATION.md](VERIFI
 
 ![Overview of the three pilot areas](docs/01-overview.jpg)
 
+*Screenshots on this page: basemap © OpenMapTiles, © OpenStreetMap contributors, served by OpenFreeMap. Plan areas and application outlines contain information licensed under the Open Government License – City of Surrey.*
+
 ## Features
 
 - **2D and 3D map**: pan, zoom, and tilt; switch to a pitched 3D view in City Centre.
@@ -48,10 +50,10 @@ See [DATA_LICENSE.md](DATA_LICENSE.md) for required attribution, source URLs, an
 
 The default project list is a rule-based selection using the source status, including conditional approval. That status is the City's application status. It is not a building permit and it does not say whether construction has started.
 
-To refresh data from the public APIs (requires Python 3 and `shapely`):
+To refresh data from the public APIs (requires Python 3 and Shapely 2):
 
 ```bash
-pip install shapely
+python3 -m pip install 'shapely>=2.0,<3'
 npm run fetch-data
 ```
 
@@ -103,13 +105,38 @@ Site build for `/demos/surrey/` deployment (writes `dist-site/`):
 npm run build:site
 ```
 
+## Load profile
+
+Measured with `node scripts/measure-load.mjs` on the built site served by `npm run serve:site`. The script uses Fast 4G: 165 ms latency and 1,012,500 bytes per second. The figures below are that run's transfer sizes.
+
+Before building footprints were deferred, they were still downloaded on first idle:
+
+- First contentful paint: 568 ms
+- First meaningful paint: 2,666 ms
+- Transfer at meaningful paint: 1,803,261 bytes
+- Transfer after idle: 7,774,830 bytes
+- Requests: 19
+- Largest response: `building_footprints.geojson`, 4,383,195 bytes
+
+After building footprints load only when that layer is first checked:
+
+- First contentful paint: 548 ms
+- First meaningful paint: 2,578 ms
+- Transfer at meaningful paint: 1,797,846 bytes
+- Transfer after idle: 3,386,220 bytes
+- Requests: 18
+- Largest response: the built script, 1,104,341 bytes
+
+`building_footprints.geojson` was not requested in the second run.
+
 ## Open by design
 
 - **Public inputs only**: no API keys, no proprietary datasets, and no backend beyond static files and public tile endpoints.
 - **Documented method**: showcase inclusion rules, height estimation, and limitations are stated in the in-app *Data and methodology* panel (`src/methodology.js`).
 - **Reproducible data**: `scripts/fetch_data.py` downloads the same public sources recorded in `SOURCES.json`.
-- **No tracking**: the page does not use analytics or cookies. Third-party requests are limited to OpenFreeMap (style, tiles, fonts). The Start here dismissal from earlier builds is not on this page, so the app does not write sessionStorage.
+- **No tracking**: the page does not use analytics, cookies, localStorage, or sessionStorage. Third-party requests are limited to OpenFreeMap (style, tiles, fonts).
 - **Open source**: application code is licensed under [Apache-2.0](LICENSE). Data files remain under their respective open licences (see [DATA_LICENSE.md](DATA_LICENSE.md)).
+- **Security**: see [SECURITY.md](SECURITY.md).
 
 ## Licence
 

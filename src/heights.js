@@ -49,8 +49,10 @@ function wordToNumber(raw) {
 function collectStoreys(text, pattern, parse) {
   const found = [];
   for (const match of text.matchAll(pattern)) {
+    const before = text.slice(0, match.index);
     const after = text.slice(match.index + match[0].length);
-    if (/^\s+(?:of\s+(?:underground\s+)?)?parking\b/i.test(after)) continue;
+    if (/\b(?:hundred|thousand)(?:\s+and)?[\s-]+$/i.test(before)) continue;
+    if (/^\s+(?:of\s+)?(?:(?:underground|above[- ]ground)\s+)?parking\b/i.test(after)) continue;
     const value = parse(match[1]);
     if (Number.isFinite(value) && value > 0 && value <= 120) found.push(value);
   }

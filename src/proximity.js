@@ -39,10 +39,12 @@ export function featureCentroid(feature) {
 }
 
 function usableCoordinate(value) {
-  if (value == null) return null;
-  if (typeof value === 'string' && value.trim() === '') return null;
-  const number = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(number) ? number : null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+  return null;
 }
 
 export function featureReferencePoint(feature) {

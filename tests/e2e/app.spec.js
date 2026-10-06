@@ -397,18 +397,27 @@ test.describe('Surrey DevViz prototype', () => {
         return clone.textContent.replace(/\s+/g, ' ');
       });
     const text = await visibleCredits();
-    expect(text).toContain('MapLibre');
-    expect(text).toContain('OpenFreeMap');
-    expect(text).toContain('OpenMapTiles');
-    expect(text).toContain(
-      'MapLibre | OpenFreeMap | OpenMapTiles | © OpenStreetMap contributors',
-    );
-    await expect(page.getByRole('link', { name: '© OpenStreetMap contributors' })).toBeVisible();
+    const credit = 'MapLibre | OpenFreeMap © OpenMapTiles © OpenStreetMap contributors';
+    expect(text).toContain(credit);
+    const links = page.locator('.maplibregl-ctrl-attrib a');
+    await expect(links).toHaveCount(4);
+    const expected = [
+      ['https://maplibre.org/', 'MapLibre'],
+      ['https://openfreemap.org/', 'OpenFreeMap'],
+      ['https://openmaptiles.org/', '© OpenMapTiles'],
+      ['https://www.openstreetmap.org/copyright', '© OpenStreetMap contributors'],
+    ];
+    for (const [index, [href, label]] of expected.entries()) {
+      const link = links.nth(index);
+      await expect(link).toHaveAttribute('href', href);
+      await expect(link).toHaveAttribute('target', '_blank');
+      await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+      await expect(link.locator('.visually-hidden')).toHaveText('(opens in a new tab)');
+      await expect(link).toContainText(label);
+    }
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(400);
-    expect(await visibleCredits()).toContain(
-      'MapLibre | OpenFreeMap | OpenMapTiles | © OpenStreetMap contributors',
-    );
+    expect(await visibleCredits()).toContain(credit);
   });
 
   test('overview frames every pilot area', async ({ page }) => {
@@ -501,6 +510,8 @@ test.describe('Surrey DevViz prototype', () => {
       'prepared in response to City of Surrey RFP 1220-030-2026-063',
     );
     await expect(page.locator('#about-content a[href$="data/README.md"]')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: /Data sources/ })).toBeVisible();
+    await expect(page.locator('#about-content h3')).toHaveCount(0);
     await expect(page.locator('#about-content')).toContainText(
       'Tested with axe-core: 0 automatically detected violations in the tested states, plus manual keyboard testing.',
     );

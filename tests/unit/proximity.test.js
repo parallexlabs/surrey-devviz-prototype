@@ -83,6 +83,19 @@ describe('featureReferencePoint', () => {
     expect(nearestStation(feature, [other, station]).station.properties.name).toBe('Assigned');
   });
 
+  it('falls back to the geometry when assign_lon or assign_lat is not a usable number', () => {
+    const geometry = { type: 'Point', coordinates: [-122.8, 49.1] };
+    for (const value of [null, undefined, '', '  ', false, [], {}, 'bad', Infinity, 181]) {
+      for (const properties of [
+        { assign_lon: value, assign_lat: 49 },
+        { assign_lon: -122, assign_lat: value },
+      ]) {
+        expect(featureReferencePoint({ geometry, properties })).toEqual(geometry.coordinates);
+      }
+    }
+    expect(featureReferencePoint({ properties: { assign_lon: 0, assign_lat: '0' } })).toEqual([0, 0]);
+  });
+
   it('falls back to the geometry when assign_lon or assign_lat is null or blank', () => {
     const geometry = {
       type: 'Polygon',
