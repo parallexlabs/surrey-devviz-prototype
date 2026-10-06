@@ -29,7 +29,9 @@ describe('projectTitle', () => {
   });
 
   it('uses real application words after to permit the development of', () => {
-    expect(projectTitle(description('14-0324-00'))).toBe('19 townhouse units');
+    expect(projectTitle(description('23-0166-00'))).toBe(
+      'Two multi-tenant industrial buildings in Campbell Heights',
+    );
     expect(projectTitle(description('19-0234-00'))).toBe(
       'A 43-storey residential apartment building in City Centre',
     );
