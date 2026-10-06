@@ -45,8 +45,8 @@ async function captureScreenshot(page, name, action, assertFn) {
 }
 
 async function recordTour(page) {
-  await page.locator('#start-guided').click();
-  await assertOverviewView(page, 'tour step 1');
+  await page.locator('#start-showcase').click();
+  await assertCityCentreView(page, 'tour step 1');
   await page.waitForTimeout(1200);
 
   let step = 1;
@@ -92,6 +92,8 @@ async function main() {
   await page.waitForSelector('.project-list li button', { timeout: 20000 });
   await page.waitForFunction(() => window.__overlaysReady === true, { timeout: 20000 });
   await waitForCameraSettled(page);
+  await page.waitForTimeout(800);
+  await recordTour(page);
 
   const screenshots = [
     {
@@ -104,6 +106,12 @@ async function main() {
     {
       name: '02-city-centre-3d',
       action: async () => {
+        await page.locator('#toggle-skytrain').check();
+        await page.locator('#toggle-civic').check();
+        await page.locator('#toggle-plan').check();
+        await page.locator('#toggle-ftda').uncheck();
+        await page.locator('#toggle-amenities').uncheck();
+        await page.locator('#toggle-buildings').uncheck();
         await page.click('[data-preset="city_centre"]');
       },
       assert: () => assertCityCentreView(page, '02-city-centre-3d'),
@@ -122,18 +130,23 @@ async function main() {
         if (!text.includes(project.projectNo)) {
           throw new Error(`03-project-panel is missing ${project.projectNo}`);
         }
-        const height = `Estimated from ${project.storeys} storeys stated in the application`;
+        const height = `${project.storeys} storeys stated in the application x 3.2 m`;
         if (!text.includes(height)) throw new Error(`03-project-panel is missing ${height}`);
+        if (!text.includes('Not a surveyed or approved height.')) {
+          throw new Error('03-project-panel is missing the height caveat');
+        }
       },
     },
     {
       name: '04-transit-overlay',
       action: async () => {
         await page.click('#close-detail');
-        await page.click('[data-preset="city_centre"]');
-        await waitForCameraSettled(page);
+        await page.locator('#toggle-skytrain').check();
+        await page.locator('#toggle-civic').check();
+        await page.locator('#toggle-plan').check();
         await page.locator('#toggle-ftda').check();
         await page.locator('#toggle-amenities').check();
+        await page.click('[data-preset="city_centre"]');
         await waitForCameraSettled(page);
       },
       assert: () => assertCityCentreView(page, '04-transit-overlay'),
@@ -141,6 +154,11 @@ async function main() {
     {
       name: '05-fleetwood',
       action: async () => {
+        await page.locator('#toggle-ftda').uncheck();
+        await page.locator('#toggle-amenities').uncheck();
+        await page.locator('#toggle-skytrain').uncheck();
+        await page.locator('#toggle-civic').uncheck();
+        await page.locator('#toggle-plan').uncheck();
         await page.click('[data-preset="fleetwood"]');
       },
       assert: () => assertPilotMassingView(page, pilotAreas.fleetwood.bbox, '05-fleetwood'),
@@ -158,8 +176,6 @@ async function main() {
   for (const shot of screenshots) {
     await captureScreenshot(page, shot.name, shot.action, shot.assert);
   }
-
-  await recordTour(page);
 
   await page.setViewportSize({ width: 390, height: 844 });
   const mobileShot = join(EVIDENCE, '07-mobile.png');

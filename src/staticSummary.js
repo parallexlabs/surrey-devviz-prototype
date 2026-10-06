@@ -1,0 +1,56 @@
+import { NON_AFFILIATION, PAGE_TITLE, PURPOSE_LINE } from './copy.js';
+import { getSkyTrainStations, pilotAreaLabel } from './data.js';
+import { isShowcaseProject } from './showcase.js';
+import { computeAtAGlance, formatAtAGlance } from './summary.js';
+import { projectPanelTitle } from './titles.js';
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+const AREA_ORDER = { city_centre: 0, fleetwood: 1, campbell_heights: 2 };
+
+export function renderStaticSummary({ projects, skytrain, civic }) {
+  const features = projects?.features || [];
+  const stations = getSkyTrainStations(skytrain || { features: [] });
+  const counts = formatAtAGlance(computeAtAGlance(features, stations));
+  const showcase = features
+    .filter((feature) => isShowcaseProject(feature.properties))
+    .sort((a, b) => {
+      const area =
+        (AREA_ORDER[a.properties.pilot_area] ?? 9) - (AREA_ORDER[b.properties.pilot_area] ?? 9);
+      if (area !== 0) return area;
+      return String(a.properties.PROJECT_NO || '').localeCompare(String(b.properties.PROJECT_NO || ''));
+    });
+  const places = civic?.places || [];
+
+  const countItems = counts.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
+  const placeItems = places
+    .map((place) => {
+      return `<li><strong>${escapeHtml(place.name)}</strong> (${escapeHtml(place.category)}). ${escapeHtml(place.text)} <a href="${escapeHtml(place.source_url)}">${escapeHtml(place.source_label)}</a></li>`;
+    })
+    .join('');
+  const projectItems = showcase
+    .map((feature) => {
+      const props = feature.properties;
+      const title = projectPanelTitle(props.DESCRIPTION);
+      return `<li>${escapeHtml(title)}. Application ${escapeHtml(props.PROJECT_NO || '')}. Status ${escapeHtml(props.STATUS || '')}. ${escapeHtml(pilotAreaLabel(props.pilot_area))}.</li>`;
+    })
+    .join('');
+
+  return `<article class="static-summary">
+  <h1>${escapeHtml(PAGE_TITLE)}</h1>
+  <p>${escapeHtml(PURPOSE_LINE)}</p>
+  <h2>Counts</h2>
+  <ul>${countItems}</ul>
+  <h2>Civic investments and destinations</h2>
+  <ul>${placeItems}</ul>
+  <h2>Development projects</h2>
+  <ul>${projectItems}</ul>
+  <p>${escapeHtml(NON_AFFILIATION)}</p>
+</article>`;
+}

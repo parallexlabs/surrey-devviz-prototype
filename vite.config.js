@@ -1,6 +1,28 @@
-import { writeFileSync } from 'fs';
-import { join } from 'path';
+import { execSync } from 'child_process';
+import { readFileSync, writeFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import { defineConfig } from 'vite';
+import { renderStaticSummary } from './src/staticSummary.js';
+
+const root = dirname(fileURLToPath(import.meta.url));
+
+function gitBuildId() {
+  try {
+    return execSync('git rev-parse --short HEAD', { cwd: root, encoding: 'utf8' }).trim();
+  } catch {
+    return 'dev';
+  }
+}
+
+function staticSummaryHtml() {
+  const read = (name) => JSON.parse(readFileSync(join(root, 'public/data', name), 'utf8'));
+  return renderStaticSummary({
+    projects: read('development_projects.geojson'),
+    skytrain: read('skytrain.geojson'),
+    civic: read('civic_places.json'),
+  });
+}
 
 const base = process.env.VITE_BASE || '/';
 const noindex = process.env.VITE_NOINDEX === '1';
@@ -26,8 +48,15 @@ const HTACCESS = `# Applies only inside this directory. Do not copy to the site 
 </IfModule>
 `;
 
+const PAGE_TITLE = "Explore Surrey's development and destinations";
+const PAGE_DESCRIPTION =
+  'Approved development projects alongside civic investments, transit and places to visit in three Surrey pilot areas.';
+
 export default defineConfig({
   base,
+  define: {
+    __BUILD_ID__: JSON.stringify(gitBuildId()),
+  },
   plugins: [
     {
       name: 'site-noindex',
@@ -45,17 +74,17 @@ export default defineConfig({
             : `${base}og.png`;
           const tags = [
             '<meta property="og:type" content="website">',
-            '<meta property="og:title" content="Surrey Development Visualization">',
-            '<meta property="og:description" content="A map of public development applications in three Surrey pilot areas.">',
+            `<meta property="og:title" content="${PAGE_TITLE}">`,
+            `<meta property="og:description" content="${PAGE_DESCRIPTION}">`,
             `<meta property="og:image" content="${image}">`,
             '<meta name="twitter:card" content="summary_large_image">',
-            '<meta name="twitter:title" content="Surrey Development Visualization">',
-            '<meta name="twitter:description" content="A map of public development applications in three Surrey pilot areas.">',
+            `<meta name="twitter:title" content="${PAGE_TITLE}">`,
+            `<meta name="twitter:description" content="${PAGE_DESCRIPTION}">`,
             `<meta name="twitter:image" content="${image}">`,
           ].join('\n  ');
           next = next.replace('</head>', `  ${tags}\n</head>`);
         }
-        return next;
+        return next.split('<!--SURREY_STATIC_SUMMARY-->').join(staticSummaryHtml());
       },
     },
     {

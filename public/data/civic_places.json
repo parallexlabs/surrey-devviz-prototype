@@ -1,0 +1,65 @@
+{
+  "retrieved": "2026-10-06",
+  "coordinates_source": "OpenStreetMap (Nominatim and the OpenStreetMap features already in amenities.geojson), (c) OpenStreetMap contributors, ODbL",
+  "places": [
+    {
+      "id": "city-centre-arena",
+      "name": "City Centre Arena (planned)",
+      "category": "Civic investment",
+      "lat": 49.190479, "lon": -122.846225,
+      "text": "On September 10, 2026, the City of Surrey reported that demolition had begun at the site of the planned 10,000-seat City Centre Arena at 10355 King George Boulevard. The City gives 2030 as the planned opening. Planned venue; not open to visitors.",
+      "source_label": "Read the City's update",
+      "source_url": "https://www.surrey.ca/news-events/news/demolition-begins-site-of-10000-seat-city-centre-arena"
+    },
+    {
+      "id": "city-hall",
+      "name": "Surrey City Hall and Civic Plaza",
+      "category": "Civic place",
+      "lat": 49.191354, "lon": -122.849229,
+      "text": "City Hall and Civic Plaza, at 13450 104 Avenue, are among the civic places the City lists for City Centre.",
+      "source_label": "City Centre on surrey.ca",
+      "source_url": "https://www.surrey.ca/about-surrey/our-communities/city-centre"
+    },
+    {
+      "id": "city-centre-library",
+      "name": "City Centre Library",
+      "category": "Civic place",
+      "lat": 49.190715, "lon": -122.849383,
+      "text": "City Centre Library, at 10350 University Drive, is one of the civic and cultural places the City lists for City Centre.",
+      "source_label": "City Centre on surrey.ca",
+      "source_url": "https://www.surrey.ca/about-surrey/our-communities/city-centre"
+    },
+    {
+      "id": "sfu-surrey",
+      "name": "SFU Surrey",
+      "category": "Campus",
+      "lat": 49.187513, "lon": -122.849507,
+      "text": "Simon Fraser University's Surrey campus is one of the institutions the City lists for City Centre.",
+      "source_label": "City Centre on surrey.ca",
+      "source_url": "https://www.surrey.ca/about-surrey/our-communities/city-centre"
+    },
+    {
+      "id": "holland-park",
+      "name": "Holland Park",
+      "category": "Destination",
+      "lat": 49.18353, "lon": -122.84844,
+      "text": "Holland Park is one of the parks the City lists for City Centre.",
+      "source_label": "City Centre on surrey.ca",
+      "source_url": "https://www.surrey.ca/about-surrey/our-communities/city-centre"
+    },
+    {
+      "id": "surrey-memorial-hospital",
+      "name": "Surrey Memorial Hospital",
+      "category": "Institution",
+      "lat": 49.176195, "lon": -122.842818,
+      "text": "Surrey Memorial Hospital, at 13750 96 Avenue, is one of the institutions the City lists for City Centre.",
+      "source_label": "City Centre on surrey.ca",
+      "source_url": "https://www.surrey.ca/about-surrey/our-communities/city-centre"
+    }
+  ],
+  "area_cards": {
+    "city-centre": {"title": "City Centre", "text": "The City describes City Centre as the region's emerging second downtown. Explore approved development alongside civic places, campuses and SkyTrain.", "source_url": "https://www.surrey.ca/about-surrey/our-communities/city-centre"},
+    "fleetwood": {"title": "Fleetwood Town Centre", "text": "Explore development in the context of the City's Fleetwood Town Centre Plan.", "source_url": "https://www.surrey.ca/renovating-building-development/land-planning-development/land-use-planning/fleetwood-land-use-plans/fleetwood-town-centre-plan"},
+    "campbell-heights": {"title": "Campbell Heights", "text": "Selected development records in Campbell Heights, including South Campbell Heights, within the City's Local Area Plan boundaries.", "source_url": "https://services5.arcgis.com/YRpe0VKTJytZSSIB/arcgis/rest/services/Campbell%20Heights%20Local%20Area%20Plan/FeatureServer/0"}
+  }
+}

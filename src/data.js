@@ -27,6 +27,45 @@ export async function loadPilotAreas() {
   return res.json();
 }
 
+export async function loadCivicPlaces() {
+  const res = await fetch(`${DATA_BASE}/civic_places.json`);
+  if (!res.ok) throw new Error(`Failed to load civic places: ${res.status}`);
+  return res.json();
+}
+
+export function civicPlacesGeoJSON(civic) {
+  const features = (civic?.places || []).map((place) => ({
+    type: 'Feature',
+    properties: {
+      id: place.id,
+      name: place.name,
+      category: place.category,
+    },
+    geometry: { type: 'Point', coordinates: [place.lon, place.lat] },
+  }));
+  return { type: 'FeatureCollection', features };
+}
+
+export async function loadCityCentrePlanLive(sourceUrl, timeoutMs = 4000) {
+  if (!sourceUrl) return null;
+  const endpoint = `${String(sourceUrl).replace(/\/$/, '')}/query?where=1%3D1&outFields=OBJECTID&returnGeometry=true&outSR=4326&f=geojson`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(endpoint, { signal: controller.signal });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data?.type !== 'FeatureCollection' || !Array.isArray(data.features) || data.features.length === 0) {
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function getSkyTrainStations(skytrainFc) {
   return skytrainFc.features.filter(
     (f) =>

@@ -24,13 +24,15 @@ describe('computeProjectHeight', () => {
     const result = computeProjectHeight('Development of a 10-storey building');
     expect(result.height_source).toBe('estimated');
     expect(result.height_m).toBe(32);
-    expect(result.height_label).toBe('Estimated from 10 storeys stated in the application');
+    expect(result.height_label).toBe(
+      'Estimated height about 32 m: 10 storeys stated in the application x 3.2 m. Not a surveyed or approved height.',
+    );
   });
 
   it('uses illustrative height by building type', () => {
     const result = computeProjectHeight('Development Permit for a mixed-use commercial project');
     expect(result.height_source).toBe('illustrative');
-    expect(result.height_label).toBe('Illustrative height (no height in public data)');
+    expect(result.height_label).toBe('Height not stated in the application. Illustrative massing only.');
     expect(result.height_m).toBeGreaterThan(0);
   });
 });

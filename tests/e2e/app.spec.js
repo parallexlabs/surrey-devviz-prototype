@@ -81,9 +81,9 @@ test.describe('Surrey DevViz prototype', () => {
 
   test('guided tour keeps the map centered in Surrey on every step', async ({ page }) => {
     await page.goto('./');
-    await page.waitForSelector('#start-guided', { timeout: 15000 });
-    await page.locator('#start-guided').click();
-    await assertOverviewView(page, 'tour step 1');
+    await page.waitForSelector('#start-showcase', { timeout: 15000 });
+    await page.locator('#start-showcase').click();
+    await assertCityCentreView(page, 'tour step 1');
 
     let step = 1;
     const next = page.locator('#tour-next');
@@ -148,7 +148,8 @@ test.describe('Surrey DevViz prototype', () => {
     await page.goto('./');
     await page.waitForSelector('.project-list li button', { timeout: 15000 });
     const showcaseCount = await page.locator('.project-list li').count();
-    expect(showcaseCount).toBeGreaterThan(0);
+    expect(showcaseCount).toBe(49);
+    expect(await page.locator('#civic-list li').count()).toBe(6);
     await page.locator('#toggle-all-apps').check();
     await page.waitForTimeout(300);
     const allCount = await page.locator('.project-list li').count();
@@ -173,8 +174,8 @@ test.describe('Surrey DevViz prototype', () => {
 
   test('guided tour opens with keyboard controls', async ({ page }) => {
     await page.goto('./');
-    await page.waitForSelector('#start-guided', { timeout: 15000 });
-    await page.locator('#start-guided').click();
+    await page.waitForSelector('#start-showcase', { timeout: 15000 });
+    await page.locator('#start-showcase').click();
     await expect(page.locator('#tour-panel')).toBeVisible();
     await expect(page.locator('#tour-caption')).not.toBeEmpty();
     await page.locator('#tour-next').click();
@@ -190,7 +191,7 @@ test.describe('Surrey DevViz prototype', () => {
       'Contains information licensed under the Open Government License',
     );
     await expect(page.locator('.app-footer')).toContainText(
-      'not affiliated with or endorsed by the City of Surrey',
+      'Not affiliated with or endorsed by the City of Surrey',
     );
     await expect(page.locator('#data-retrieved')).toHaveText('Public data retrieved 6 October 2026');
     await page.locator('#open-methodology').click();
@@ -216,45 +217,35 @@ test.describe('Surrey DevViz prototype', () => {
     await assertProjectPanel(page, 'mobile project selection');
   });
 
-  test('start here bar is keyboard operable and dismissible', async ({ page }) => {
+  test('opening actions start the showcase or move to the list', async ({ page }) => {
     await page.goto('./');
-    await page.waitForSelector('#start-here', { timeout: 15000 });
+    await page.waitForSelector('#start-showcase', { timeout: 15000 });
     await page.waitForSelector('.project-list li button', { timeout: 15000 });
     await waitForCameraSettled(page);
-    const bar = page.locator('#start-here');
-    await expect(bar).toBeVisible();
-    for (const name of ['Explore projects', 'Transit and amenities', '3D City Centre']) {
-      await expect(bar.getByRole('button', { name })).toBeVisible();
-    }
-    await expect(page.getByRole('button', { name: 'Guided tour' })).toHaveCount(1);
+    await expect(page.locator('h1')).toHaveText("Explore Surrey's development and destinations");
+    await expect(page.locator('.what-this-is')).toHaveText(
+      'Approved development projects alongside civic investments, transit and places to visit in three Surrey pilot areas.',
+    );
+    await expect(page.getByRole('button', { name: 'Start the showcase' })).toHaveCount(1);
+    await expect(page.locator('.quiet-line')).toContainText(
+      'Independent public-data prototype by ParalleX Labs Inc. Not affiliated with or endorsed by the City of Surrey.',
+    );
+    await expect(page.locator('#area-card')).toContainText('43 selected records in this prototype');
+    await expect(page.locator('#area-card')).toContainText(
+      "A public-data selection, not a complete inventory or the City's final showcase list.",
+    );
 
-    await page.locator('#start-explore').focus();
+    await page.locator('#browse-list').focus();
     await page.keyboard.press('Enter');
     await expect(page.locator('#project-list')).toBeFocused();
 
-    await page.locator('#start-transit').focus();
-    await page.keyboard.press('Enter');
-    await expect(page.locator('#toggle-skytrain')).toBeChecked();
-    await expect(page.locator('#toggle-amenities')).toBeChecked();
-    await assertCityCentreView(page, 'start here transit');
-
-    await page.locator('#start-3d').focus();
-    await page.keyboard.press('Enter');
-    await assertCityCentreView(page, 'start here 3D City Centre');
-
-    await page.locator('#start-guided').focus();
+    await page.locator('#start-showcase').focus();
     await page.keyboard.press('Enter');
     await expect(page.locator('#tour-panel')).toBeVisible();
+    await expect(page.locator('#tour-title')).toHaveText('Development and destinations in City Centre');
     await page.locator('#tour-exit').click();
     await expect(page.locator('#tour-panel')).toBeHidden();
-    await expect(page.locator('#start-guided')).toBeFocused();
-
-    await page.locator('#start-dismiss').focus();
-    await page.keyboard.press('Enter');
-    await expect(bar).toBeHidden();
-    await page.reload();
-    await page.waitForSelector('#map', { timeout: 15000 });
-    await expect(page.locator('#start-here')).toBeHidden();
+    await expect(page.locator('#start-showcase')).toBeFocused();
   });
 
   test('rings are explained in the legend and the project panel', async ({ page }) => {
@@ -265,7 +256,8 @@ test.describe('Surrey DevViz prototype', () => {
     await page.click('[data-preset="city_centre"]');
     await assertCityCentreView(page, 'rings City Centre');
     await selectCityCentreProject(page);
-    await expect(page.locator('#detail-panel')).toContainText(RINGS_EXPLANATION);
+    await expect(page.locator('#detail-panel')).toContainText('straight-line (not a walking route)');
+    await expect(page.locator('#detail-panel')).not.toContainText('5-minute walk');
     await assertProjectPanel(page, 'rings explained');
   });
 
@@ -287,8 +279,10 @@ test.describe('Surrey DevViz prototype', () => {
     await expect(page.locator('#detail-panel')).toBeVisible();
     await expect(page.locator('#detail-content')).toContainText('21-0313-00');
     await expect(page.locator('#detail-content')).toContainText(
-      'Estimated from 67 storeys stated in the application',
+      'Estimated height about 214.4 m: 67 storeys stated in the application x 3.2 m. Not a surveyed or approved height.',
     );
+    await expect(page.locator('#detail-content')).toContainText('Application status: Conditional Approval');
+    await expect(page.locator('#detail-content')).toContainText("View the City's application record");
     await expect(page.locator('#detail-content')).toContainText(
       'Source: City of Surrey Development Applications',
     );
@@ -340,18 +334,18 @@ test.describe('Surrey DevViz prototype', () => {
   test('start here fits a 390px screen and touch targets are at least 44px', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('./');
-    await page.waitForSelector('#start-here button', { timeout: 15000 });
+    await page.waitForSelector('#start-showcase', { timeout: 15000 });
     await waitForCameraSettled(page);
     const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
     expect(fits).toBe(true);
-    await page.locator('#start-here').scrollIntoViewIfNeeded();
-    const bar = await page.locator('#start-here').boundingBox();
+    await page.locator('.header-actions').scrollIntoViewIfNeeded();
+    const bar = await page.locator('.header-actions').boundingBox();
     expect(bar.x).toBeGreaterThanOrEqual(0);
     expect(bar.x + bar.width).toBeLessThanOrEqual(391);
     expect(bar.y).toBeGreaterThanOrEqual(0);
     expect(bar.y + bar.height).toBeLessThanOrEqual(844);
 
-    const ids = ['start-explore', 'start-transit', 'start-3d', 'start-dismiss', 'start-guided', 'open-methodology'];
+    const ids = ['start-showcase', 'browse-list', 'open-methodology'];
     for (const id of ids) {
       const target = page.locator(`#${id}`);
       await target.scrollIntoViewIfNeeded();
@@ -378,7 +372,16 @@ test.describe('Surrey DevViz prototype', () => {
     expect(text).toContain('MapLibre');
     expect(text).toContain('OpenFreeMap');
     expect(text).toContain('OpenMapTiles');
-    expect(text).toContain('OpenStreetMap');
+    expect(text.replace(/\s+/g, ' ')).toContain(
+      'MapLibre | OpenFreeMap | OpenMapTiles | (c) OpenStreetMap contributors',
+    );
+    await expect(page.getByRole('link', { name: '(c) OpenStreetMap contributors' })).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(400);
+    const phone = await page.locator('.maplibregl-ctrl-attrib').innerText();
+    expect(phone.replace(/\s+/g, ' ')).toContain(
+      'MapLibre | OpenFreeMap | OpenMapTiles | (c) OpenStreetMap contributors',
+    );
   });
 
   test('overview frames every pilot area', async ({ page }) => {
@@ -465,5 +468,75 @@ test.describe('Surrey DevViz prototype', () => {
     await page.locator('#tab-about').click();
     await expect(page.locator('#about-content')).toContainText('does not use tracking or cookies');
     await expect(page.locator('#about-content')).toContainText('map tiles');
+    await expect(page.locator('#about-content')).toContainText(
+      'Tested with axe-core: 0 automatically detected violations in the tested states, plus manual keyboard testing.',
+    );
+    await expect(page.locator('#about-content')).not.toContainText('screen reader');
+  });
+
+  test('civic places open their own card and stay out of the project count', async ({ page }) => {
+    await page.goto('./');
+    await page.waitForSelector('#civic-list li button', { timeout: 15000 });
+    await expect(page.locator('#toggle-civic')).toBeChecked();
+    await page.locator('#civic-list li button', { hasText: 'City Centre Arena (planned)' }).click();
+    await expect(page.locator('#detail-title')).toHaveText('City Centre Arena (planned)');
+    await expect(page.locator('#detail-content')).toContainText('Civic investment');
+    await expect(page.locator('#detail-content')).toContainText('demolition had begun');
+    await expect(page.locator('#detail-content a')).toHaveText("Read the City's update");
+    await expect(page.locator('.project-list li')).toHaveCount(49);
+  });
+
+  test('showcase tour visits the five stops and opens the matching cards', async ({ page }) => {
+    await page.goto('./');
+    await page.waitForSelector('#start-showcase', { timeout: 15000 });
+    await page.locator('#start-showcase').click();
+    const titles = [
+      'Development and destinations in City Centre',
+      'A major project and its transit context',
+      'Civic investment: City Centre Arena',
+      'Fleetwood Town Centre',
+      'Campbell Heights',
+    ];
+    for (let index = 0; index < titles.length; index += 1) {
+      await expect(page.locator('#tour-title')).toHaveText(titles[index]);
+      if (index === 1) {
+        await expect(page.locator('#detail-content')).toContainText('21-0313-00');
+        await expect(page.locator('#detail-content')).toContainText('not a walking route');
+        await expect(page.locator('#toggle-skytrain')).toBeChecked();
+        await expect(page.locator('#toggle-civic')).not.toBeChecked();
+      }
+      if (index === 2) {
+        await expect(page.locator('#detail-title')).toHaveText('City Centre Arena (planned)');
+        await expect(page.locator('#toggle-civic')).toBeChecked();
+      }
+      if (index === 3) {
+        await expect(page.locator('#area-card')).toContainText('Fleetwood Town Centre');
+        await expect(page.locator('#area-card')).toContainText('2 selected records in this prototype');
+        await expect(page.locator('#area-card a')).toHaveAttribute('href', /fleetwood-town-centre-plan/);
+      }
+      if (index === titles.length - 1) {
+        await expect(page.locator('#tour-closing')).toHaveText(
+          'Explore a project, open its City source, or share this view.',
+        );
+        await expect(page.locator('#tour-next')).toBeDisabled();
+      } else {
+        await page.locator('#tour-next').click();
+      }
+    }
+    await page.locator('#tour-prev').click();
+    await expect(page.locator('#tour-title')).toHaveText('Fleetwood Town Centre');
+    await page.locator('#tour-exit').click();
+    await expect(page.locator('#start-showcase')).toBeFocused();
+  });
+
+  test('the built page includes a no-javascript summary', async ({ request }) => {
+    const html = await (await request.get('./')).text();
+    expect(html).toContain('<noscript>');
+    expect(html).toContain("Explore Surrey's development and destinations");
+    const places = html.match(/<h2>Civic investments and destinations<\/h2>\s*<ul>([\s\S]*?)<\/ul>/);
+    expect(places[1].match(/<li>/g)).toHaveLength(6);
+    const projects = html.match(/<h2>Development projects<\/h2>\s*<ul>([\s\S]*?)<\/ul>/);
+    expect(projects[1].match(/<li>/g)).toHaveLength(49);
+    expect(html).toContain('Not affiliated with or endorsed by the City of Surrey.');
   });
 });

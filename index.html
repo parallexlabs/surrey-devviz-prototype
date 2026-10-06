@@ -3,13 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="A map of public development applications in three Surrey pilot areas.">
-  <title>Surrey Development Visualization: Prototype</title>
+  <meta name="description" content="Approved development projects alongside civic investments, transit and places to visit in three Surrey pilot areas.">
+  <title>Explore Surrey's development and destinations</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <style>
+    .static-summary { max-width: 42rem; margin: 0 auto; padding: 16px 20px 48px; font-family: system-ui, sans-serif; line-height: 1.45; color: #1a1f2e; }
+    .static-summary h1 { font-size: 1.5rem; line-height: 1.3; }
+    .static-summary li { margin: 0.35rem 0; }
+  </style>
 </head>
 <body>
   <a href="#main-content" class="skip-link">Skip to main content</a>
-  <div id="app"></div>
+  <div id="app">
+    <!--SURREY_STATIC_SUMMARY-->
+  </div>
+  <noscript>
+    <style>#app .static-summary { display: none; }</style>
+    <!--SURREY_STATIC_SUMMARY-->
+  </noscript>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

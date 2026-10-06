@@ -5,6 +5,9 @@ import {
   loadGeoJSON,
   loadSources,
   loadPilotAreas,
+  loadCivicPlaces,
+  loadCityCentrePlanLive,
+  civicPlacesGeoJSON,
   getSkyTrainStations,
   enrichProjects,
   pilotAreaLabel,
@@ -15,16 +18,28 @@ import {
 } from './data.js';
 import {
   nearestStation,
-  formatDistance,
   createProximityRingsGeoJSON,
   featureCentroid,
 } from './proximity.js';
 import { isShowcaseProject, underReviewLabel } from './showcase.js';
 import { HEIGHT_LEGEND } from './heights.js';
-import { projectTitle, projectPanelTitle, projectSubtitle } from './titles.js';
+import { projectTitle, projectSubtitle } from './titles.js';
 import { computeAtAGlance, formatAtAGlance } from './summary.js';
-import { buildTourSteps, tourStepCamera } from './tour.js';
-import { RINGS_EXPLANATION, STATUS_SOURCE } from './copy.js';
+import { buildTourSteps } from './tour.js';
+import { projectPanelModel } from './detail.js';
+import { BUILD_ID } from './buildInfo.js';
+import {
+  ACCESSIBILITY_STATEMENT,
+  AREA_COUNT_NOTE,
+  MASSING_NOTE,
+  NON_AFFILIATION,
+  OPENING_LAYERS,
+  PAGE_TITLE,
+  PURPOSE_LINE,
+  RINGS_EXPLANATION,
+  SHOWCASE_CLOSING,
+  areaCountLine,
+} from './copy.js';
 import { buildLocationHash, parseLocationHash } from './hashView.js';
 import { methodologyModel } from './methodology.js';
 
@@ -137,12 +152,35 @@ const AREA_COLORS = {
   default: { estimated: '#555555', illustrative: '#aaaaaa' },
 };
 
+const AREA_BY_PRESET = {
+  city_centre: 'city-centre',
+  fleetwood: 'fleetwood',
+  campbell_heights: 'campbell-heights',
+};
+
+const PILOT_BY_AREA = {
+  'city-centre': 'city_centre',
+  fleetwood: 'fleetwood',
+  'campbell-heights': 'campbell_heights',
+};
+
+const LAYER_TOGGLES = {
+  skytrain: 'toggle-skytrain',
+  ftda: 'toggle-ftda',
+  plan: 'toggle-plan',
+  amenities: 'toggle-amenities',
+  buildings: 'toggle-buildings',
+  civic: 'toggle-civic',
+};
+
 let map;
 let projectsFc;
 let amenitiesFc;
+let civicData;
 let pilotAreasMeta;
 let stations = [];
 let selectedId = null;
+let selectedCivicId = null;
 let sourcesMeta = [];
 let showAllApplications = false;
 let tourSteps = [];
@@ -184,36 +222,21 @@ const DEFAULT_PAINT = {
   ],
 };
 
-function startHereDismissed() {
-  try {
-    return sessionStorage.getItem('surrey-devviz-start-dismissed') === '1';
-  } catch {
-    return false;
-  }
-}
-
 function buildApp() {
   const app = document.getElementById('app');
-  const startHidden = startHereDismissed() ? ' hidden' : '';
   app.innerHTML = `
     <div class="chrome">
       <header class="app-header" role="banner">
         <div class="brand">
-          <h1>Surrey Development Visualization</h1>
-          <p class="subtitle">Public-data prototype by ParalleX Labs Inc.</p>
-          <p class="what-this-is">A map of public development applications in three Surrey pilot areas.</p>
+          <h1>${escapeHtml(PAGE_TITLE)}</h1>
+          <p class="what-this-is">${escapeHtml(PURPOSE_LINE)}</p>
+          <div class="header-actions">
+            <button type="button" id="start-showcase" class="btn-primary">Start the showcase</button>
+            <button type="button" id="browse-list" class="btn-secondary">Browse without the map</button>
+          </div>
         </div>
       </header>
       <button type="button" id="open-methodology" class="methodology-open">Data and methodology</button>
-      <div id="start-here" class="start-here"${startHidden}>
-        <h2 id="start-here-title" class="start-here-title">Start here</h2>
-        <div class="start-here-actions">
-          <button type="button" id="start-explore">Explore projects</button>
-          <button type="button" id="start-transit">Transit and amenities</button>
-          <button type="button" id="start-3d">3D City Centre</button>
-          <button type="button" id="start-dismiss">Dismiss</button>
-        </div>
-      </div>
     </div>
     <aside class="sidebar" id="sidebar" aria-label="Project list and information">
       <div class="sidebar-tabs" role="tablist">
@@ -222,6 +245,7 @@ function buildApp() {
       </div>
       <div class="sidebar-panel" id="panel-projects" role="tabpanel" aria-labelledby="tab-projects">
         <section class="at-a-glance" id="at-a-glance" aria-label="At a glance summary"></section>
+        <section id="area-card" class="area-card" hidden></section>
         <label class="toggle-row">
           <input type="checkbox" id="toggle-all-apps" aria-describedby="all-apps-hint">
           All applications
@@ -247,6 +271,8 @@ function buildApp() {
           </select>
         </div>
         <ul class="project-list" id="project-list" tabindex="-1" aria-label="Development projects"></ul>
+        <h2 id="civic-heading" class="civic-heading">Civic investments and destinations</h2>
+        <ul class="civic-list" id="civic-list" aria-labelledby="civic-heading"></ul>
       </div>
       <div class="sidebar-panel" id="panel-about" role="tabpanel" aria-labelledby="tab-about" hidden>
         <div class="about-content" id="about-content"></div>
@@ -255,7 +281,6 @@ function buildApp() {
     <main class="map-area" id="main-content">
       <div id="map" role="application" aria-label="Interactive 3D map of Surrey development projects"></div>
       <div class="map-controls" aria-label="Map controls">
-        <button type="button" id="start-guided" class="tour-start">Guided tour</button>
         <h2>View</h2>
         <div class="camera-presets" role="group" aria-label="Camera presets">
           <button type="button" data-preset="overview">Surrey</button>
@@ -267,22 +292,25 @@ function buildApp() {
         <label><input type="checkbox" id="toggle-skytrain" checked> SkyTrain</label>
         <label><input type="checkbox" id="toggle-ftda"> FTDA</label>
         <label><input type="checkbox" id="toggle-plan" checked> City Centre Plan</label>
-        <label><input type="checkbox" id="toggle-amenities" checked> Amenities</label>
+        <label><input type="checkbox" id="toggle-civic" checked> Civic investments and destinations</label>
+        <label><input type="checkbox" id="toggle-amenities"> Amenities</label>
         <label><input type="checkbox" id="toggle-buildings"> Existing buildings</label>
         <h2 class="legend-heading">Massing legend</h2>
         <ul class="height-legend" aria-label="Massing height legend">
           <li><span class="swatch swatch-estimated" aria-hidden="true"></span> ${HEIGHT_LEGEND.estimated}</li>
           <li><span class="swatch swatch-illustrative" aria-hidden="true"></span> ${HEIGHT_LEGEND.illustrative}</li>
         </ul>
+        <p class="massing-note">${escapeHtml(MASSING_NOTE)}</p>
         <p class="rings-legend">${escapeHtml(RINGS_EXPLANATION)}</p>
       </div>
       <div class="tour-panel" id="tour-panel" hidden role="dialog" aria-modal="true" aria-labelledby="tour-title" tabindex="-1">
         <h2 id="tour-title"></h2>
         <p id="tour-caption"></p>
+        <p id="tour-closing" hidden></p>
         <div class="tour-nav">
           <button type="button" id="tour-prev">Previous</button>
           <button type="button" id="tour-next">Next</button>
-          <button type="button" id="tour-exit">Exit</button>
+          <button type="button" id="tour-exit">End showcase</button>
         </div>
       </div>
       <div id="methodology-drawer" class="methodology-drawer" hidden role="dialog" aria-modal="true" aria-labelledby="methodology-title">
@@ -295,14 +323,15 @@ function buildApp() {
       <div class="detail-panel" id="detail-panel" hidden role="dialog" aria-labelledby="detail-title">
         <div class="detail-toolbar">
           <h2 id="detail-title"></h2>
-          <button class="close-btn" id="close-detail" aria-label="Close project details">Close</button>
+          <button class="close-btn" id="close-detail" aria-label="Close details">Close</button>
         </div>
         <div id="detail-content"></div>
       </div>
     </main>
     <footer class="app-footer" role="contentinfo">
       <p id="data-retrieved" hidden></p>
-      <p>${escapeHtml(SURREY_LICENCE_TEXT)} <a href="${escapeAttr(SURREY_LICENCE_URL)}" target="_blank" rel="noopener">City of Surrey Open Data licence</a>. This prototype is not affiliated with or endorsed by the City of Surrey.</p>
+      <p>${escapeHtml(SURREY_LICENCE_TEXT)} <a href="${escapeAttr(SURREY_LICENCE_URL)}" target="_blank" rel="noopener">City of Surrey Open Data licence</a>.</p>
+      <p class="quiet-line">${escapeHtml(NON_AFFILIATION)}</p>
     </footer>
   `;
 
@@ -311,7 +340,7 @@ function buildApp() {
   setupCameraPresets();
   setupOverlayToggles();
   setupTourControls();
-  setupStartHere();
+  setupHeaderActions();
   setupMethodology();
   document.getElementById('close-detail').addEventListener('click', () => {
     selectProject(null, { restoreFocus: true });
@@ -366,6 +395,7 @@ function setupOverlayToggles() {
     'toggle-plan': ['city-centre-plan-fill', 'city-centre-plan-line'],
     'toggle-amenities': ['amenities-points'],
     'toggle-buildings': ['buildings-fill', 'buildings-extrusion'],
+    'toggle-civic': ['civic-symbols'],
   };
   for (const [id, layers] of Object.entries(toggles)) {
     document.getElementById(id).addEventListener('change', (e) => {
@@ -378,7 +408,6 @@ function setupOverlayToggles() {
 }
 
 function setupTourControls() {
-  document.getElementById('start-guided').addEventListener('click', () => startTour());
   document.getElementById('tour-prev').addEventListener('click', () => stepTour(-1));
   document.getElementById('tour-next').addEventListener('click', () => stepTour(1));
   document.getElementById('tour-exit').addEventListener('click', () => endTour(true));
@@ -388,12 +417,16 @@ function setupTourControls() {
         closeMethodology();
         return;
       }
+      if (tourIndex >= 0) {
+        e.preventDefault();
+        selectProject(null, { skipHash: true });
+        endTour(true);
+        return;
+      }
       if (!document.getElementById('detail-panel').hidden) {
         e.preventDefault();
         selectProject(null, { restoreFocus: true });
-        return;
       }
-      if (tourIndex >= 0) endTour(true);
       return;
     }
     if (tourIndex < 0) return;
@@ -402,31 +435,11 @@ function setupTourControls() {
   });
 }
 
-function dismissStartHere() {
-  document.getElementById('start-here').hidden = true;
-  try {
-    sessionStorage.setItem('surrey-devviz-start-dismissed', '1');
-  } catch {
-    /* storage unavailable */
-  }
-}
-
-function setupStartHere() {
-  document.getElementById('start-explore').addEventListener('click', () => {
+function setupHeaderActions() {
+  document.getElementById('start-showcase').addEventListener('click', () => startTour());
+  document.getElementById('browse-list').addEventListener('click', () => {
+    document.getElementById('tab-projects').click();
     document.getElementById('project-list').focus();
-  });
-  document.getElementById('start-transit').addEventListener('click', () => {
-    setOverlayChecked('toggle-skytrain', true);
-    setOverlayChecked('toggle-amenities', true);
-    activatePreset('city_centre');
-  });
-  document.getElementById('start-3d').addEventListener('click', () => activatePreset('city_centre'));
-  document.getElementById('start-dismiss').addEventListener('click', dismissStartHere);
-  document.getElementById('start-here').addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      dismissStartHere();
-    }
   });
 }
 
@@ -456,6 +469,7 @@ function setOverlayChecked(id, checked) {
 function activatePreset(name) {
   currentView = name;
   selectProject(null, { skipHash: true });
+  renderAreaCard(AREA_BY_PRESET[name] || null);
   flyToPreset(name);
   setLocationHash({ view: name });
 }
@@ -492,6 +506,7 @@ function applyLocationHash() {
     if (parsed.view) {
       currentView = parsed.view;
       selectProject(null, { skipHash: true });
+      renderAreaCard(AREA_BY_PRESET[parsed.view] || null);
       flyToPreset(parsed.view);
     }
   } finally {
@@ -509,9 +524,9 @@ function flyToPreset(name, options = {}) {
 
 function cameraForHash() {
   const parsed = parseLocationHash(location.hash);
-  if (parsed.view && parsed.view !== 'overview' && CAMERA_PRESETS[parsed.view]) {
-    return CAMERA_PRESETS[parsed.view];
-  }
+  if (parsed.view === 'overview') return overviewCamera();
+  if (parsed.view && CAMERA_PRESETS[parsed.view]) return presetCamera(parsed.view);
+  if (!parsed.view && !parsed.project) return presetCamera('city_centre');
   return CAMERA_PRESETS.overview;
 }
 
@@ -539,6 +554,9 @@ async function loadBasemapStyle() {
   if (!response.ok) throw new Error(`Basemap style failed: ${response.status}`);
   const style = await response.json();
   guardNullComparisons(style);
+  for (const source of Object.values(style.sources || {})) {
+    if (source && typeof source === 'object') delete source.attribution;
+  }
   for (const layer of style.layers || []) {
     const field = layer.layout?.['text-field'];
     if (Array.isArray(field) && field[0] === 'coalesce' && field.at(-1) !== '') field.push('');
@@ -552,6 +570,9 @@ async function loadBasemapStyle() {
 }
 
 async function initMap() {
+  const parsed = parseLocationHash(location.hash);
+  if (!parsed.view && !parsed.project) currentView = 'city_centre';
+  else if (parsed.view) currentView = parsed.view;
   const initial = cameraForHash();
   const style = await loadBasemapStyle();
   map = new maplibregl.Map({
@@ -572,13 +593,22 @@ async function initMap() {
   });
 
   map.addControl(new maplibregl.NavigationControl(), 'top-left');
+  const mapAttribution =
+    '<a href="https://maplibre.org/" target="_blank" rel="noopener">MapLibre</a> | OpenFreeMap | OpenMapTiles | <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">(c) OpenStreetMap contributors</a>';
   map.addControl(
     new maplibregl.AttributionControl({
       compact: false,
-      customAttribution: '<a href="https://maplibre.org/" target="_blank" rel="noopener">MapLibre</a>',
+      customAttribution: mapAttribution,
     }),
     'bottom-right',
   );
+  const lockMapAttribution = () => {
+    const inner = document.querySelector('#map .maplibregl-ctrl-attrib-inner');
+    if (!inner || inner.innerHTML === mapAttribution) return;
+    inner.innerHTML = mapAttribution;
+  };
+  map.on('styledata', lockMapAttribution);
+  map.on('idle', lockMapAttribution);
   window.__map = map;
 
   let lastMapSize = '';
@@ -598,8 +628,10 @@ async function initMap() {
     const parsed = parseLocationHash(location.hash);
     if (parsed.view || parsed.project) applyLocationHash();
     else {
-      currentView = 'overview';
-      flyToPreset('overview', { instant: true });
+      currentView = 'city_centre';
+      renderAreaCard('city-centre');
+      applyRelevantLayers(OPENING_LAYERS);
+      flyToPreset('city_centre', { instant: true });
     }
     map.once('idle', () => beginOverlayLoad());
     map.triggerRepaint();
@@ -608,6 +640,16 @@ async function initMap() {
         selectProject(e.features[0].properties.OBJECTID ?? e.features[0].properties.PROJECT_NO);
       }
     };
+    map.on('click', 'civic-symbols', (e) => {
+      const placeId = e.features?.[0]?.properties?.id;
+      if (placeId) selectCivic(placeId);
+    });
+    map.on('mouseenter', 'civic-symbols', () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    map.on('mouseleave', 'civic-symbols', () => {
+      map.getCanvas().style.cursor = '';
+    });
     for (const layerId of ['projects-extrusion', 'projects-markers']) {
       map.on('click', layerId, selectFromMap);
       map.on('mouseenter', layerId, () => {
@@ -634,6 +676,8 @@ function addSourcesAndLayers() {
   map.addSource('project-markers', { type: 'geojson', data: projectMarkerPoints(projectsFc) });
   map.addSource('proximity-rings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addSource('project-highlight', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addSource('civic-places', { type: 'geojson', data: civicPlacesGeoJSON(civicData) });
+  addCivicIcon();
 
   map.addLayer({
     id: 'city-centre-plan-fill',
@@ -704,7 +748,19 @@ function addSourcesAndLayers() {
       ...DEFAULT_PAINT,
       'fill-extrusion-height': ['coalesce', ['get', 'height_m'], 0],
       'fill-extrusion-base': 0,
-      'fill-extrusion-opacity': 0.8,
+      'fill-extrusion-opacity': 0.82,
+    },
+  });
+
+  map.addLayer({
+    id: 'projects-illustrative-outline',
+    type: 'line',
+    source: 'projects',
+    filter: ['==', ['get', 'height_source'], 'illustrative'],
+    paint: {
+      'line-color': '#163a6b',
+      'line-width': 2.25,
+      'line-dasharray': [1.2, 0.85],
     },
   });
 
@@ -767,6 +823,7 @@ function addSourcesAndLayers() {
     type: 'circle',
     source: 'amenities',
     minzoom: AMENITY_MIN_ZOOM,
+    layout: { visibility: 'none' },
     paint: {
       'circle-radius': 6,
       'circle-color': '#2a7a4b',
@@ -809,6 +866,29 @@ function addSourcesAndLayers() {
   });
 
   map.addLayer({
+    id: 'civic-symbols',
+    type: 'symbol',
+    source: 'civic-places',
+    layout: {
+      'icon-image': 'civic-diamond',
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.55, 15, 0.9],
+      'icon-allow-overlap': true,
+      'text-field': ['step', ['zoom'], '', 14, ['get', 'name']],
+      'text-font': ['Noto Sans Bold'],
+      'text-size': 12,
+      'text-anchor': 'top',
+      'text-offset': [0, 0.9],
+      'text-max-width': 14,
+      'text-allow-overlap': true,
+    },
+    paint: {
+      'text-color': '#3b2468',
+      'text-halo-color': '#ffffff',
+      'text-halo-width': 2,
+    },
+  });
+
+  map.addLayer({
     id: 'proximity-rings-fill',
     type: 'fill',
     source: 'proximity-rings',
@@ -841,6 +921,74 @@ function updateMapFilter() {
   else if (clauses.length > 1) filter = ['all', ...clauses];
   map.setFilter('projects-extrusion', filter);
   if (map.getLayer('projects-markers')) map.setFilter('projects-markers', filter);
+  if (map.getLayer('projects-illustrative-outline')) {
+    const illustrative = ['==', ['get', 'height_source'], 'illustrative'];
+    map.setFilter(
+      'projects-illustrative-outline',
+      filter ? ['all', filter, illustrative] : illustrative,
+    );
+  }
+}
+
+function addCivicIcon() {
+  if (map.hasImage('civic-diamond')) return;
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, size, size);
+  ctx.beginPath();
+  ctx.moveTo(32, 4);
+  ctx.lineTo(60, 32);
+  ctx.lineTo(32, 60);
+  ctx.lineTo(4, 32);
+  ctx.closePath();
+  ctx.fillStyle = '#5b2d8e';
+  ctx.fill();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#ffffff';
+  ctx.stroke();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 26px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('C', 32, 34);
+  const image = ctx.getImageData(0, 0, size, size);
+  map.addImage('civic-diamond', image, { pixelRatio: 2 });
+}
+
+function applyRelevantLayers(layers = {}) {
+  for (const [key, id] of Object.entries(LAYER_TOGGLES)) {
+    setOverlayChecked(id, Boolean(layers[key]));
+  }
+}
+
+function selectedRecordCount(pilotKey) {
+  if (!projectsFc || !pilotKey) return 0;
+  return projectsFc.features.filter(
+    (feature) => feature.properties.pilot_area === pilotKey && isShowcaseProject(feature.properties),
+  ).length;
+}
+
+function renderAreaCard(areaId) {
+  const el = document.getElementById('area-card');
+  if (!el) return;
+  const card = areaId ? civicData?.area_cards?.[areaId] : null;
+  if (!card) {
+    el.hidden = true;
+    el.innerHTML = '';
+    return;
+  }
+  const count = selectedRecordCount(PILOT_BY_AREA[areaId]);
+  el.hidden = false;
+  el.innerHTML = `
+    <h2>${escapeHtml(card.title)}</h2>
+    <p>${escapeHtml(card.text)}</p>
+    <p><a href="${escapeAttr(card.source_url)}" target="_blank" rel="noopener">${escapeHtml(card.source_url)}</a></p>
+    <p class="area-count">${escapeHtml(areaCountLine(count))}</p>
+    <p class="area-note">${escapeHtml(AREA_COUNT_NOTE)}</p>
+  `;
 }
 
 function projectMarkerPoints(fc) {
@@ -945,6 +1093,27 @@ function renderProjectList() {
     li.appendChild(btn);
     list.appendChild(li);
   }
+  renderCivicList();
+}
+
+function renderCivicList() {
+  const list = document.getElementById('civic-list');
+  if (!list) return;
+  list.innerHTML = '';
+  for (const place of civicData?.places || []) {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.civicId = place.id;
+    btn.setAttribute('aria-current', String(place.id === selectedCivicId));
+    btn.innerHTML = `
+      <strong>${escapeHtml(place.name)}</strong><br>
+      <span class="area-tag">${escapeHtml(place.category)}</span>
+    `;
+    btn.addEventListener('click', () => selectCivic(place.id));
+    li.appendChild(btn);
+    list.appendChild(li);
+  }
 }
 
 function projectId(props) {
@@ -985,15 +1154,18 @@ function selectProject(id, options = {}) {
   const opening = id != null && panel.hidden;
   const opener = opening ? document.activeElement : null;
   selectedId = id != null ? String(id) : null;
+  if (id != null) selectedCivicId = null;
   renderProjectList();
 
   if (id === null) {
+    selectedCivicId = null;
     panel.hidden = true;
     document.getElementById('app').classList.remove('detail-open');
     map?.getSource('proximity-rings')?.setData({ type: 'FeatureCollection', features: [] });
     setProjectHighlight(null);
+    renderCivicList();
     if (!options.skipHash) setLocationHash({ view: currentView });
-    if (options.restoreFocus && detailReturn) {
+    if (options.restoreFocus && detailReturn && tourIndex < 0) {
       const restore = detailReturn;
       detailReturn = null;
       restore();
@@ -1030,37 +1202,68 @@ function selectProject(id, options = {}) {
     map.once('load', applyProjectMapView);
   }
 
-  const ringsHtml = `<p class="rings-note">${escapeHtml(RINGS_EXPLANATION)}</p>`;
-  let proximityHtml = '';
-  if (nearest) {
-    const name = nearest.station.properties.name || 'SkyTrain station';
-    proximityHtml = `
-      <div class="proximity">
-        <strong>Nearest SkyTrain:</strong> ${escapeHtml(name)}<br>
-        <strong>Straight-line distance:</strong> ${formatDistance(nearest.distanceM)}<br>
-        ${ringsHtml}
-      </div>
-    `;
-  } else {
-    proximityHtml = `<div class="proximity">No SkyTrain station found in data.${ringsHtml}</div>`;
-  }
-
-  document.getElementById('detail-title').textContent = plain(projectPanelTitle(p.DESCRIPTION));
+  const model = projectPanelModel(p, nearest);
+  renderAreaCard(AREA_BY_PRESET[p.pilot_area] || areaIdForPilot(p.pilot_area));
+  document.getElementById('detail-title').textContent = plain(model.title);
+  const applicationLink = model.applicationUrl
+    ? `<p><a href="${escapeAttr(model.applicationUrl)}" target="_blank" rel="noopener">${escapeHtml(model.applicationLinkLabel)}</a></p>`
+    : '';
+  const documentsLink = model.documentsUrl
+    ? `<dt>Documents</dt><dd><a href="${escapeAttr(model.documentsUrl)}" target="_blank" rel="noopener">View documents</a></dd>`
+    : '';
   document.getElementById('detail-content').innerHTML = `
-    <p class="project-no-detail">${escapeHtml(projectSubtitle(p))}</p>
+    <p class="detail-description">${escapeHtml(model.description)}</p>
+    <p class="status-line">${escapeHtml(model.statusLine)}</p>
+    <p class="height-fact">${escapeHtml(model.heightLine)}</p>
+    <p class="skytrain-line">${escapeHtml(model.skytrainLine)}</p>
+    ${applicationLink}
     <dl>
-      <dt>Status</dt><dd>${escapeHtml(p.STATUS || 'Not provided')}<span class="status-source">${escapeHtml(STATUS_SOURCE)}</span></dd>
-      <dt>Height</dt><dd class="height-fact">${escapeHtml(p.height_label || '')}</dd>
-      <dt>Pilot area</dt><dd>${escapeHtml(pilotAreaLabel(p.pilot_area))}</dd>
+      <dt>Application number</dt><dd>${escapeHtml(model.projectNo)}</dd>
+      <dt>Pilot area</dt><dd>${escapeHtml(model.pilotArea)}</dd>
+      ${documentsLink}
+      <dt>Status source</dt><dd>${escapeHtml(model.statusSource)}</dd>
     </dl>
-    ${proximityHtml}
-    <dl>
-      <dt>Description</dt><dd>${escapeHtml((p.DESCRIPTION || '').replace(/\r\n/g, ' ').trim() || 'Not provided')}</dd>
-      ${p.WEBLINK ? `<dt>Weblink</dt><dd><a href="${escapeAttr(p.WEBLINK)}" target="_blank" rel="noopener">${escapeHtml(p.WEBLINK)}</a></dd>` : ''}
-      ${p.APPLICATION_DOCUMENTS_WEBLINK ? `<dt>Documents</dt><dd><a href="${escapeAttr(p.APPLICATION_DOCUMENTS_WEBLINK)}" target="_blank" rel="noopener">View documents</a></dd>` : ''}
-    </dl>
+    <p class="context-line">${escapeHtml(model.contextLine)}</p>
   `;
-  document.getElementById('close-detail').focus();
+  if (!options.fromTour) document.getElementById('close-detail').focus();
+}
+
+function areaIdForPilot(pilot) {
+  return AREA_BY_PRESET[pilot] || Object.entries(PILOT_BY_AREA).find(([, key]) => key === pilot)?.[0] || null;
+}
+
+function selectCivic(id, options = {}) {
+  const place = (civicData?.places || []).find((item) => item.id === id);
+  if (!place) return;
+  const panel = document.getElementById('detail-panel');
+  const opening = panel.hidden;
+  const opener = opening ? document.activeElement : null;
+  if (opening) rememberDetailReturn(id, opener);
+  selectedId = null;
+  selectedCivicId = place.id;
+  renderProjectList();
+  panel.hidden = false;
+  document.getElementById('app').classList.add('detail-open');
+  map?.getSource('proximity-rings')?.setData({ type: 'FeatureCollection', features: [] });
+  setProjectHighlight(null);
+  document.getElementById('detail-title').textContent = plain(place.name);
+  document.getElementById('detail-content').innerHTML = `
+    <p class="civic-category">${escapeHtml(place.category)}</p>
+    <p>${escapeHtml(place.text)}</p>
+    <p><a href="${escapeAttr(place.source_url)}" target="_blank" rel="noopener">${escapeHtml(place.source_label)}</a></p>
+  `;
+  const civicCamera = {
+    center: [place.lon, place.lat],
+    zoom: 16.2,
+    pitch: 48,
+    bearing: -18,
+  };
+  if (map) {
+    if (cameraMovesInstantly()) map.jumpTo(civicCamera);
+    else map.flyTo({ ...civicCamera, duration: 1500 });
+  }
+  if (options.fromTour) setLocationHash({ view: currentView });
+  if (!options.fromTour) document.getElementById('close-detail').focus();
 }
 
 function renderAtAGlance() {
@@ -1075,7 +1278,7 @@ function renderAtAGlance() {
 }
 
 function renderMethodology() {
-  const model = methodologyModel(sourcesMeta);
+  const model = methodologyModel(sourcesMeta, BUILD_ID);
   const retrieved = document.getElementById('data-retrieved');
   if (model.retrieved) {
     retrieved.hidden = false;
@@ -1108,28 +1311,32 @@ function renderAbout() {
     <p>${escapeHtml(SURREY_LICENCE_TEXT)} <a href="${escapeAttr(SURREY_LICENCE_URL)}" target="_blank" rel="noopener">City of Surrey Open Data licence</a>.</p>
     <p>This prototype is not affiliated with or endorsed by the City of Surrey.</p>
     <p>This page does not use tracking or cookies. It does not load third-party scripts beyond the map tiles.</p>
-    <p>Data: City of Surrey Open Data and OpenStreetMap contributors. Estimated heights use stated storeys × 3.2 m; other massing is illustrative.</p>
+    <p>${escapeHtml(ACCESSIBILITY_STATEMENT)}</p>
+    <p>Data: City of Surrey Open Data and OpenStreetMap contributors. Estimated heights use stated storeys x 3.2 m. Other massing is illustrative.</p>
     <h3>Data sources (${projectsFc.features.length} applications)</h3>
     ${licenceHtml}
   `;
 }
 
 async function startTour() {
-  await beginOverlayLoad();
-  tourSteps = buildTourSteps(projectsFc, window.__skytrainFc, amenitiesFc, pilotAreasMeta);
+  beginOverlayLoad();
+  tourSteps = buildTourSteps(projectsFc, window.__skytrainFc, civicData, pilotAreasMeta);
   tourIndex = 0;
   showTourStep();
-  if (document.getElementById('detail-panel').hidden) {
-    document.getElementById('tour-panel').focus();
-  }
+  document.getElementById('tour-panel').focus();
 }
 
 function endTour(restoreFocus = false) {
   tourIndex = -1;
   const panel = document.getElementById('tour-panel');
   panel.hidden = true;
-  announce('Tour ended');
-  if (restoreFocus) document.getElementById('start-guided').focus();
+  const closing = document.getElementById('tour-closing');
+  if (closing) {
+    closing.hidden = true;
+    closing.textContent = '';
+  }
+  announce('Showcase ended');
+  if (restoreFocus) document.getElementById('start-showcase').focus();
 }
 
 function stepTour(delta) {
@@ -1146,29 +1353,32 @@ function showTourStep() {
   panel.hidden = false;
   document.getElementById('tour-title').textContent = plain(step.title);
   document.getElementById('tour-caption').textContent = plain(step.caption);
-  document.getElementById('tour-prev').disabled = tourIndex === 0;
-  document.getElementById('tour-next').disabled = tourIndex === tourSteps.length - 1;
-  announce(`Tour step ${tourIndex + 1} of ${tourSteps.length}: ${step.title}. ${step.caption}`);
+  const closing = document.getElementById('tour-closing');
+  const isLast = tourIndex === tourSteps.length - 1;
+  closing.hidden = !isLast;
+  closing.textContent = isLast ? SHOWCASE_CLOSING : '';
+  const prev = document.getElementById('tour-prev');
+  const next = document.getElementById('tour-next');
+  prev.disabled = tourIndex === 0;
+  next.disabled = isLast;
+  if (next.disabled && document.activeElement === next) document.getElementById('tour-exit').focus();
+  if (prev.disabled && document.activeElement === prev) next.focus();
+  announce(`Showcase stop ${tourIndex + 1} of ${tourSteps.length}: ${step.title}. ${step.caption}`);
 
-  if (step.toggles) {
-    if (step.toggles.skytrain != null) {
-      document.getElementById('toggle-skytrain').checked = step.toggles.skytrain;
-      document.getElementById('toggle-skytrain').dispatchEvent(new Event('change'));
-    }
-    if (step.toggles.plan != null) {
-      document.getElementById('toggle-plan').checked = step.toggles.plan;
-      document.getElementById('toggle-plan').dispatchEvent(new Event('change'));
-    }
+  applyRelevantLayers(step.layers || {});
+  currentView = step.preset || currentView;
+  renderAreaCard(step.areaId || null);
+
+  if (step.focusId) {
+    selectProject(step.focusId, { fromTour: true });
+  } else if (step.civicId) {
+    selectCivic(step.civicId, { fromTour: true });
+  } else {
+    selectProject(null, { skipHash: true });
+    renderAreaCard(step.areaId || null);
+    if (step.preset) flyToPreset(step.preset);
+    setLocationHash({ view: step.preset });
   }
-
-  const customCamera = tourStepCamera(step, pilotAreasMeta, projectsFc);
-  if (customCamera) {
-    flyToPreset(null, { camera: customCamera });
-  } else if (step.preset) {
-    flyToPreset(step.preset);
-  }
-
-  if (step.focusId) selectProject(step.focusId);
 }
 
 function announce(message) {
@@ -1222,20 +1432,40 @@ async function loadDeferredOverlays() {
   window.__ftdaFc = ftda;
   window.__amenitiesFc = amenities;
   window.__overlaysReady = true;
+  window.__planLive = false;
+  refreshCityCentrePlan(plan);
+}
+
+async function refreshCityCentrePlan(plan) {
+  try {
+  const planSource = (sourcesMeta || []).find((source) => source.file === 'city_centre_plan.geojson');
+  const bundledCount = plan?.features?.length || 0;
+  const live = await loadCityCentrePlanLive(planSource?.source_url);
+  const liveCount = live?.features?.length || 0;
+  const closeEnough = bundledCount > 0 && Math.abs(liveCount - bundledCount) / bundledCount <= 0.25;
+  if (live && closeEnough && map?.getSource('city-centre-plan')) {
+    map.getSource('city-centre-plan').setData(live);
+    window.__planLive = true;
+  }
+  } catch {
+    window.__planLive = false;
+  }
 }
 
 async function main() {
   buildApp();
 
-  const [projects, skytrain, sources, pilotAreas] = await Promise.all([
+  const [projects, skytrain, sources, pilotAreas, civic] = await Promise.all([
     loadGeoJSON('development_projects'),
     loadGeoJSON('skytrain'),
     loadSources(),
     loadPilotAreas(),
+    loadCivicPlaces(),
   ]);
 
   projectsFc = enrichProjects(projects);
   amenitiesFc = EMPTY_FC;
+  civicData = civic;
   pilotAreasMeta = pilotAreas;
   stations = getSkyTrainStations(skytrain);
   sourcesMeta = sources;
@@ -1260,6 +1490,9 @@ async function main() {
   renderAtAGlance();
   renderAbout();
   renderMethodology();
+  const openingHash = parseLocationHash(location.hash);
+  if (openingHash.view) renderAreaCard(AREA_BY_PRESET[openingHash.view] || null);
+  else if (!openingHash.project) renderAreaCard('city-centre');
   await initMap();
 }
 

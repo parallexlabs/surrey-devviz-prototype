@@ -74,11 +74,12 @@ export function illustrativeHeightMeters(description) {
 export function computeProjectHeight(description) {
   const storeys = parseStoreys(description);
   if (storeys != null) {
+    const height_m = Math.round(storeys * STOREY_HEIGHT_M * 10) / 10;
     return {
-      height_m: Math.round(storeys * STOREY_HEIGHT_M * 10) / 10,
+      height_m,
       height_source: 'estimated',
       storeys,
-      height_label: estimatedHeightLabel(storeys),
+      height_label: estimatedHeightLabel(storeys, height_m),
     };
   }
   const height_m = illustrativeHeightMeters(description);
@@ -91,6 +92,6 @@ export function computeProjectHeight(description) {
 }
 
 export const HEIGHT_LEGEND = {
-  estimated: 'Stated storeys × 3.2 m',
-  illustrative: 'Illustrative height by building type',
+  estimated: 'Estimated: stated storeys x 3.2 m',
+  illustrative: 'Illustrative: lighter fill and outline',
 };

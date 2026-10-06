@@ -60,7 +60,7 @@ async function main() {
   states.push(await scan(page, 'panel'));
   await page.locator('#close-detail').click();
 
-  await page.locator('#start-guided').click();
+  await page.locator('#start-showcase').click();
   await page.waitForSelector('#tour-panel:not([hidden])');
   states.push(await scan(page, 'tour'));
   await page.locator('#tour-exit').click();

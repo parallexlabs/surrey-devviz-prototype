@@ -1,124 +1,104 @@
 import { isShowcaseProject } from './showcase.js';
 import { parseStoreys } from './heights.js';
-import { nearestStation, formatDistance, featureCentroid } from './proximity.js';
-import { geometryContains, getSkyTrainStations, getSkyTrainLines } from './data.js';
+import { nearestStation, formatDistance } from './proximity.js';
+import { getSkyTrainStations } from './data.js';
 
-function pointInArea(lon, lat, area) {
-  if (!area) return false;
-  if (area.geometry) return geometryContains(area.geometry, lon, lat);
-  const bbox = area.bbox;
-  if (!bbox) return false;
-  return lon >= bbox[0] && lon <= bbox[2] && lat >= bbox[1] && lat <= bbox[3];
-}
+const NEAR_SKYTRAIN_M = 800;
+const MAJOR_PROJECT_NO = '21-0313-00';
 
 function countShowcaseInArea(projects, area) {
   return projects.filter(
-    (f) => f.properties.pilot_area === area && isShowcaseProject(f.properties),
+    (feature) => feature.properties.pilot_area === area && isShowcaseProject(feature.properties),
   ).length;
 }
 
-function civicAnchorsInArea(amenities, area) {
-  return amenities.features.filter((f) => {
-    if (f.geometry?.type !== 'Point') return false;
-    const [lon, lat] = f.geometry.coordinates;
-    return pointInArea(lon, lat, area);
-  });
+function projectsNearSkyTrain(projects, stations) {
+  return projects.filter((feature) => {
+    if (!isShowcaseProject(feature.properties)) return false;
+    const nearest = nearestStation(feature, stations);
+    return nearest && nearest.distanceM <= NEAR_SKYTRAIN_M;
+  }).length;
 }
 
-function tallestShowcase(projects, area = null) {
-  let best = null;
-  let bestStoreys = 0;
-  for (const feature of projects) {
-    if (area && feature.properties.pilot_area !== area) continue;
-    if (!isShowcaseProject(feature.properties)) continue;
-    const storeys = parseStoreys(feature.properties.DESCRIPTION);
-    if (storeys != null && storeys > bestStoreys) {
-      bestStoreys = storeys;
-      best = feature;
+export function buildTourSteps(projectsFc, skytrainFc, civic, pilotAreas) {
+  const projects = projectsFc?.features || [];
+  const stations = getSkyTrainStations(skytrainFc || { features: [] });
+  const near = projectsNearSkyTrain(projects, stations);
+  const major = projects.find((feature) => feature.properties.PROJECT_NO === MAJOR_PROJECT_NO);
+  const arena = (civic?.places || []).find((place) => place.id === 'city-centre-arena');
+  const fleetwoodCount = countShowcaseInArea(projects, 'fleetwood');
+  const campbellCount = countShowcaseInArea(projects, 'campbell_heights');
+
+  let majorCaption = `Application ${MAJOR_PROJECT_NO} is not in the loaded development applications.`;
+  if (major) {
+    const nearest = nearestStation(major, stations);
+    const storeys = parseStoreys(major.properties.DESCRIPTION);
+    const name = nearest?.station?.properties?.name || 'SkyTrain station';
+    const distance = nearest ? formatDistance(nearest.distanceM) : null;
+    if (nearest && storeys != null) {
+      majorCaption = `Application ${MAJOR_PROJECT_NO} states ${storeys} storeys and its nearest SkyTrain station is ${name}, about ${distance} straight-line (not a walking route).`;
+    } else if (nearest) {
+      majorCaption = `Nearest SkyTrain station for application ${MAJOR_PROJECT_NO}: ${name}, about ${distance} straight-line (not a walking route).`;
+    } else if (storeys != null) {
+      majorCaption = `Application ${MAJOR_PROJECT_NO} states ${storeys} storeys in the application description.`;
     }
   }
-  return best ? { feature: best, storeys: bestStoreys } : null;
-}
 
-function stationsInArea(stations, area) {
-  return stations.filter((s) => {
-    const [lon, lat] = s.geometry.coordinates;
-    return pointInArea(lon, lat, area);
-  });
-}
+  const arenaCaption = arena
+    ? `${arena.name} (${arena.category}) is not included in the development application count.`
+    : 'City Centre Arena is not in the loaded civic places.';
 
-export function buildTourSteps(projectsFc, skytrainFc, amenitiesFc, pilotAreas) {
-  const projects = projectsFc.features;
-  const stations = getSkyTrainStations(skytrainFc);
-  const lines = getSkyTrainLines(skytrainFc);
-  const showcaseTotal = projects.filter((f) => isShowcaseProject(f.properties)).length;
-  const total = projects.length;
+  void pilotAreas;
 
-  const steps = [
+  return [
     {
-      id: 'overview',
-      preset: 'overview',
-      title: 'Surrey overview',
-      caption: `${showcaseTotal} showcase projects from ${total} active applications across ${Object.keys(pilotAreas || {}).length} pilot areas.`,
+      id: 'city-centre',
+      title: 'Development and destinations in City Centre',
+      preset: 'city_centre',
+      areaId: 'city-centre',
+      caption: `${near} showcase projects are within 800 m straight-line of a SkyTrain station.`,
+      layers: { skytrain: true, civic: true, plan: true },
+    },
+    {
+      id: 'major-project',
+      title: 'A major project and its transit context',
+      preset: 'city_centre',
+      areaId: 'city-centre',
+      focusId: major ? major.properties.OBJECTID ?? major.properties.PROJECT_NO : MAJOR_PROJECT_NO,
+      caption: majorCaption,
+      layers: { skytrain: true },
+    },
+    {
+      id: 'arena',
+      title: 'Civic investment: City Centre Arena',
+      preset: 'city_centre',
+      areaId: 'city-centre',
+      civicId: 'city-centre-arena',
+      caption: arenaCaption,
+      layers: { civic: true, skytrain: true },
+    },
+    {
+      id: 'fleetwood',
+      title: 'Fleetwood Town Centre',
+      preset: 'fleetwood',
+      areaId: 'fleetwood',
+      caption: `${fleetwoodCount} selected records in this prototype are in Fleetwood Town Centre.`,
+      layers: {},
+    },
+    {
+      id: 'campbell-heights',
+      title: 'Campbell Heights',
+      preset: 'campbell_heights',
+      areaId: 'campbell-heights',
+      caption: `${campbellCount} selected records in this prototype are in Campbell Heights.`,
+      layers: {},
     },
   ];
-
-  const ccStations = stationsInArea(stations, pilotAreas?.city_centre);
-  const ccAnchors = civicAnchorsInArea(amenitiesFc, pilotAreas?.city_centre);
-  const anchorNames = ccAnchors
-    .map((f) => f.properties.name)
-    .filter(Boolean)
-    .slice(0, 4);
-  steps.push({
-    id: 'city_centre',
-    preset: 'city_centre',
-    title: 'City Centre',
-    caption: `${countShowcaseInArea(projects, 'city_centre')} showcase projects. SkyTrain: ${lines.length} line segment${lines.length === 1 ? '' : 's'} and ${ccStations.length} station${ccStations.length === 1 ? '' : 's'} in view${ccStations.length ? ` (${ccStations.map((s) => s.properties.name).filter(Boolean).join(', ')})` : ''}.${anchorNames.length ? ` Civic anchors in data: ${anchorNames.join(', ')}.` : ''}`,
-    toggles: { skytrain: true, plan: true },
-  });
-
-  const tallest = tallestShowcase(projects, 'city_centre') || tallestShowcase(projects);
-  if (tallest) {
-    const nearest = nearestStation(tallest.feature, stations);
-    steps.push({
-      id: 'tallest',
-      preset: 'city_centre',
-      title: 'Tallest stated storeys',
-      caption: `${tallest.feature.properties.PROJECT_NO}: ${tallest.storeys} storeys stated in the application description.${nearest ? ` Nearest SkyTrain (${nearest.station.properties.name || 'station'}): ${formatDistance(nearest.distanceM)} straight-line.` : ''}`,
-      focusId: tallest.feature.properties.OBJECTID ?? tallest.feature.properties.PROJECT_NO,
-      toggles: { skytrain: true },
-    });
-  }
-
-  steps.push({
-    id: 'fleetwood',
-    preset: 'fleetwood',
-    title: 'Fleetwood',
-    caption: `${countShowcaseInArea(projects, 'fleetwood')} showcase projects in the Fleetwood Town Centre pilot area.${(() => {
-      const anchors = civicAnchorsInArea(amenitiesFc, pilotAreas?.fleetwood);
-      const names = anchors.map((f) => f.properties.name).filter(Boolean);
-      return names.length ? ` Amenities in data: ${names.join(', ')}.` : '';
-    })()}`,
-  });
-
-  steps.push({
-    id: 'campbell_heights',
-    preset: 'campbell_heights',
-    title: 'Campbell Heights',
-    caption: `${countShowcaseInArea(projects, 'campbell_heights')} showcase projects inside the Campbell Heights and South Campbell Heights local area plans.`,
-  });
-
-  return steps;
 }
 
 export function tourStepCamera(step, pilotAreas, projectsFc) {
-  if (step.focusId && projectsFc) {
-    const feature = projectsFc.features.find(
-      (f) =>
-        String(f.properties.OBJECTID ?? f.properties.PROJECT_NO) === String(step.focusId),
-    );
-    const center = feature ? featureCentroid(feature) : null;
-    if (center) return { center, zoom: 16, pitch: 45, bearing: -10 };
-  }
+  void pilotAreas;
+  void projectsFc;
+  void step;
   return null;
 }
