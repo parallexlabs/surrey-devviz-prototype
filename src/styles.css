@@ -91,6 +91,189 @@ header.app-header .subtitle {
   color: var(--text-muted);
 }
 
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.methodology-open,
+.phase-filter,
+.start-here button,
+#close-methodology {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.methodology-open {
+  padding: 8px 12px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--primary);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.start-here {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 8px;
+  background: #e7eef8;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.start-here[hidden] {
+  display: none;
+}
+
+.start-here-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.start-here-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.start-here button {
+  padding: 8px 12px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#start-guided {
+  background: var(--primary);
+  color: #fff;
+}
+
+.start-here button:focus-visible,
+.methodology-open:focus-visible,
+.phase-filter:focus-visible,
+#close-methodology:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.phase-filters {
+  margin-bottom: 8px;
+}
+
+.phase-filters[hidden] {
+  display: none;
+}
+
+.phase-filters p {
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.phase-filters div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.phase-filter {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.phase-filter[aria-pressed='true'] {
+  border-color: var(--primary);
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+.rings-legend,
+.rings-note {
+  margin: 6px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.status-source {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.methodology-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 30;
+  width: min(440px, 100%);
+  height: 100%;
+  overflow: auto;
+  padding: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.methodology-drawer[hidden] {
+  display: none;
+}
+
+.methodology-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.methodology-toolbar h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--primary);
+}
+
+#close-methodology {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.methodology-drawer h3 {
+  font-size: 0.95rem;
+  margin: 16px 0 4px;
+}
+
+.methodology-drawer p {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
 .app-footer {
   grid-column: 1 / -1;
   padding: 8px 16px;
@@ -607,6 +790,40 @@ header.app-header .subtitle {
     top: 8px;
     left: 8px;
     max-width: calc(100% - 16px);
+  }
+
+  .camera-presets button,
+  .tour-nav button,
+  .tour-start,
+  .sidebar-tabs button,
+  .close-btn,
+  .search-input,
+  .filter-row select,
+  .map-controls label,
+  .toggle-row {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .map-controls {
+    max-height: 42vh;
+    overflow: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .start-here-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  .start-here-actions button {
+    width: 100%;
+  }
+
+  #start-dismiss {
+    grid-column: 1 / -1;
   }
 }
 

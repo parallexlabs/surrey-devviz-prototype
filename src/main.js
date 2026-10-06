@@ -16,11 +16,14 @@ import {
   createProximityRingsGeoJSON,
   featureCentroid,
 } from './proximity.js';
-import { isShowcaseProject, isUnderReviewStatus, underReviewLabel } from './showcase.js';
+import { isShowcaseProject, underReviewLabel } from './showcase.js';
 import { HEIGHT_LEGEND } from './heights.js';
 import { projectTitle, projectSubtitle } from './titles.js';
 import { computeAtAGlance, formatAtAGlance } from './summary.js';
 import { buildTourSteps, tourStepCamera } from './tour.js';
+import { RINGS_EXPLANATION, STATUS_SOURCE } from './copy.js';
+import { buildLocationHash, parseLocationHash } from './hashView.js';
+import { methodologyModel } from './methodology.js';
 
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -81,6 +84,8 @@ let showAllApplications = false;
 let tourSteps = [];
 let tourIndex = -1;
 let atAGlance = null;
+let applyingHash = false;
+let currentView = null;
 
 const DEFAULT_PAINT = {
   'fill-extrusion-color': [
@@ -112,12 +117,34 @@ const DEFAULT_PAINT = {
   ],
 };
 
+function startHereDismissed() {
+  try {
+    return sessionStorage.getItem('surrey-devviz-start-dismissed') === '1';
+  } catch {
+    return false;
+  }
+}
+
 function buildApp() {
   const app = document.getElementById('app');
+  const startHidden = startHereDismissed() ? ' hidden' : '';
   app.innerHTML = `
     <header class="app-header" role="banner">
-      <h1>Surrey Development Visualization</h1>
-      <span class="subtitle">Public-data prototype by ParalleX Labs Inc.</span>
+      <div class="brand">
+        <h1>Surrey Development Visualization</h1>
+        <span class="subtitle">Public-data prototype by ParalleX Labs Inc.</span>
+      </div>
+      <button type="button" id="open-methodology" class="methodology-open">Data and methodology</button>
+      <div id="start-here" class="start-here"${startHidden}>
+        <h2 id="start-here-title" class="start-here-title">Start here</h2>
+        <div class="start-here-actions">
+          <button type="button" id="start-explore">Explore projects</button>
+          <button type="button" id="start-transit">Transit and amenities</button>
+          <button type="button" id="start-3d">3D City Centre</button>
+          <button type="button" id="start-guided">Guided tour</button>
+          <button type="button" id="start-dismiss">Dismiss</button>
+        </div>
+      </div>
     </header>
     <aside class="sidebar" id="sidebar" aria-label="Project list and information">
       <div class="sidebar-tabs" role="tablist">
@@ -131,6 +158,10 @@ function buildApp() {
           All applications
         </label>
         <p id="all-apps-hint" class="hint">Default view shows approved showcase projects only.</p>
+        <div id="phase-filters" class="phase-filters" hidden>
+          <p id="phase-filters-label">Phase</p>
+          <div id="phase-filter-group" role="group" aria-labelledby="phase-filters-label"></div>
+        </div>
         <label for="search" class="visually-hidden">Search projects</label>
         <input type="search" id="search" class="search-input" placeholder="Search projects…" aria-label="Search projects">
         <div class="filter-row">
@@ -146,7 +177,7 @@ function buildApp() {
             <option value="">All statuses</option>
           </select>
         </div>
-        <ul class="project-list" id="project-list" aria-label="Development projects"></ul>
+        <ul class="project-list" id="project-list" tabindex="-1" aria-label="Development projects"></ul>
       </div>
       <div class="sidebar-panel" id="panel-about" role="tabpanel" aria-labelledby="tab-about" hidden>
         <div class="about-content" id="about-content"></div>
@@ -174,6 +205,7 @@ function buildApp() {
           <li><span class="swatch swatch-estimated" aria-hidden="true"></span> ${HEIGHT_LEGEND.estimated}</li>
           <li><span class="swatch swatch-illustrative" aria-hidden="true"></span> ${HEIGHT_LEGEND.illustrative}</li>
         </ul>
+        <p class="rings-legend">${escapeHtml(RINGS_EXPLANATION)}</p>
       </div>
       <div class="tour-panel" id="tour-panel" hidden role="dialog" aria-modal="true" aria-labelledby="tour-title">
         <h2 id="tour-title"></h2>
@@ -184,12 +216,20 @@ function buildApp() {
           <button type="button" id="tour-exit">Exit</button>
         </div>
       </div>
+      <div id="methodology-drawer" class="methodology-drawer" hidden role="dialog" aria-modal="true" aria-labelledby="methodology-title">
+        <div class="methodology-toolbar">
+          <h2 id="methodology-title">Data and methodology</h2>
+          <button type="button" id="close-methodology">Close</button>
+        </div>
+        <div id="methodology-content"></div>
+      </div>
       <div class="detail-panel" id="detail-panel" hidden aria-live="polite">
         <button class="close-btn" id="close-detail" aria-label="Close project details">×</button>
         <div id="detail-content"></div>
       </div>
     </main>
     <footer class="app-footer" role="contentinfo">
+      <p id="data-retrieved" hidden></p>
       <p>${escapeHtml(SURREY_LICENCE_TEXT)} <a href="${escapeAttr(SURREY_LICENCE_URL)}" target="_blank" rel="noopener">City of Surrey Open Data licence</a>. This prototype is not affiliated with or endorsed by the City of Surrey.</p>
     </footer>
   `;
@@ -199,13 +239,20 @@ function buildApp() {
   setupCameraPresets();
   setupOverlayToggles();
   setupTourControls();
+  setupStartHere();
+  setupMethodology();
   document.getElementById('close-detail').addEventListener('click', () => selectProject(null));
   document.getElementById('toggle-all-apps').addEventListener('change', (e) => {
     showAllApplications = e.target.checked;
+    if (!showAllApplications) document.getElementById('filter-status').value = '';
     updateMapFilter();
     populateStatusFilter();
+    renderPhaseFilters();
     renderProjectList();
     renderAtAGlance();
+  });
+  window.addEventListener('hashchange', () => {
+    if (!applyingHash && map?.getSource('projects')) applyLocationHash();
   });
 }
 
@@ -225,12 +272,16 @@ function setupTabs() {
 function setupFilters() {
   document.getElementById('search').addEventListener('input', renderProjectList);
   document.getElementById('filter-area').addEventListener('change', renderProjectList);
-  document.getElementById('filter-status').addEventListener('change', renderProjectList);
+  document.getElementById('filter-status').addEventListener('change', () => {
+    updateMapFilter();
+    renderProjectList();
+    renderPhaseFilters();
+  });
 }
 
 function setupCameraPresets() {
   document.querySelectorAll('[data-preset]').forEach((btn) => {
-    btn.addEventListener('click', () => flyToPreset(btn.dataset.preset));
+    btn.addEventListener('click', () => activatePreset(btn.dataset.preset));
   });
 }
 
@@ -258,11 +309,113 @@ function setupTourControls() {
   document.getElementById('tour-next').addEventListener('click', () => stepTour(1));
   document.getElementById('tour-exit').addEventListener('click', () => endTour());
   document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !document.getElementById('methodology-drawer').hidden) {
+      closeMethodology();
+      return;
+    }
     if (tourIndex < 0) return;
     if (e.key === 'Escape') endTour();
     if (e.key === 'ArrowRight') stepTour(1);
     if (e.key === 'ArrowLeft') stepTour(-1);
   });
+}
+
+function dismissStartHere() {
+  document.getElementById('start-here').hidden = true;
+  try {
+    sessionStorage.setItem('surrey-devviz-start-dismissed', '1');
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+function setupStartHere() {
+  document.getElementById('start-explore').addEventListener('click', () => {
+    document.getElementById('project-list').focus();
+  });
+  document.getElementById('start-transit').addEventListener('click', () => {
+    setOverlayChecked('toggle-skytrain', true);
+    setOverlayChecked('toggle-amenities', true);
+    activatePreset('city_centre');
+  });
+  document.getElementById('start-3d').addEventListener('click', () => activatePreset('city_centre'));
+  document.getElementById('start-guided').addEventListener('click', () => startTour());
+  document.getElementById('start-dismiss').addEventListener('click', dismissStartHere);
+  document.getElementById('start-here').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      dismissStartHere();
+    }
+  });
+}
+
+function setupMethodology() {
+  document.getElementById('open-methodology').addEventListener('click', openMethodology);
+  document.getElementById('close-methodology').addEventListener('click', closeMethodology);
+}
+
+function openMethodology() {
+  const drawer = document.getElementById('methodology-drawer');
+  drawer.hidden = false;
+  document.getElementById('close-methodology').focus();
+}
+
+function closeMethodology() {
+  document.getElementById('methodology-drawer').hidden = true;
+  document.getElementById('open-methodology').focus();
+}
+
+function setOverlayChecked(id, checked) {
+  const input = document.getElementById(id);
+  if (!input) return;
+  input.checked = checked;
+  input.dispatchEvent(new Event('change'));
+}
+
+function activatePreset(name) {
+  currentView = name;
+  selectProject(null, { skipHash: true });
+  flyToPreset(name);
+  setLocationHash({ view: name });
+}
+
+function setLocationHash(state) {
+  if (applyingHash) return;
+  const next = buildLocationHash(state);
+  const current = location.hash || '';
+  if (current === next) return;
+  const url = `${location.pathname}${location.search}${next}`;
+  history.replaceState(null, '', url);
+}
+
+function applyLocationHash() {
+  const parsed = parseLocationHash(location.hash);
+  if (!parsed.view && !parsed.project) return;
+  applyingHash = true;
+  try {
+    if (parsed.project) {
+      const feature = projectsFc.features.find((f) => f.properties.PROJECT_NO === parsed.project);
+      if (!feature) return;
+      if (!showAllApplications && !isShowcaseProject(feature.properties)) {
+        showAllApplications = true;
+        document.getElementById('toggle-all-apps').checked = true;
+        updateMapFilter();
+        populateStatusFilter();
+        renderPhaseFilters();
+        renderAtAGlance();
+      }
+      currentView = parsed.view;
+      selectProject(projectId(feature.properties), { skipHash: true });
+      return;
+    }
+    if (parsed.view) {
+      currentView = parsed.view;
+      selectProject(null, { skipHash: true });
+      flyToPreset(parsed.view);
+    }
+  } finally {
+    applyingHash = false;
+  }
 }
 
 function flyToPreset(name, options = {}) {
@@ -273,14 +426,23 @@ function flyToPreset(name, options = {}) {
   map.once('moveend', () => map.triggerRepaint());
 }
 
+function cameraForHash() {
+  const parsed = parseLocationHash(location.hash);
+  if (parsed.view && parsed.view !== 'overview' && CAMERA_PRESETS[parsed.view]) {
+    return CAMERA_PRESETS[parsed.view];
+  }
+  return CAMERA_PRESETS.overview;
+}
+
 function initMap() {
+  const initial = cameraForHash();
   map = new maplibregl.Map({
     container: 'map',
     style: 'https://tiles.openfreemap.org/styles/liberty',
-    center: CAMERA_PRESETS.overview.center,
-    zoom: CAMERA_PRESETS.overview.zoom,
-    pitch: 0,
-    bearing: 0,
+    center: initial.center,
+    zoom: initial.zoom,
+    pitch: initial.pitch,
+    bearing: initial.bearing || 0,
     antialias: true,
     preserveDrawingBuffer: true,
   });
@@ -292,7 +454,9 @@ function initMap() {
   map.on('load', () => {
     map.resize();
     addSourcesAndLayers();
-    flyToPreset('overview', { instant: true });
+    const parsed = parseLocationHash(location.hash);
+    if (parsed.view || parsed.project) applyLocationHash();
+    else flyToPreset('overview', { instant: true });
     map.on('click', 'projects-extrusion', (e) => {
       if (e.features?.length) {
         selectProject(e.features[0].properties.OBJECTID ?? e.features[0].properties.PROJECT_NO);
@@ -434,10 +598,14 @@ function addSourcesAndLayers() {
 
 function updateMapFilter() {
   if (!map?.getLayer('projects-extrusion')) return;
-  map.setFilter(
-    'projects-extrusion',
-    showAllApplications ? null : ['==', ['get', 'showcase'], true],
-  );
+  const status = document.getElementById('filter-status')?.value || '';
+  const clauses = [];
+  if (!showAllApplications) clauses.push(['==', ['get', 'showcase'], true]);
+  if (status) clauses.push(['==', ['get', 'STATUS'], status]);
+  let filter = null;
+  if (clauses.length === 1) filter = clauses[0];
+  else if (clauses.length > 1) filter = ['all', ...clauses];
+  map.setFilter('projects-extrusion', filter);
 }
 
 function populateStatusFilter() {
@@ -450,6 +618,39 @@ function populateStatusFilter() {
     opt.value = s;
     opt.textContent = s;
     select.appendChild(opt);
+  }
+}
+
+function renderPhaseFilters() {
+  const wrap = document.getElementById('phase-filters');
+  if (!wrap || !projectsFc) return;
+  wrap.hidden = !showAllApplications;
+  const group = document.getElementById('phase-filter-group');
+  group.innerHTML = '';
+  if (!showAllApplications) return;
+  const current = document.getElementById('filter-status').value;
+  const statuses = [...new Set(projectsFc.features.map((f) => f.properties.STATUS).filter(Boolean))].sort();
+  const options = [{ value: '', label: 'All statuses' }, ...statuses.map((status) => ({ value: status, label: status }))];
+  for (const option of options) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'phase-filter';
+    btn.textContent = option.label;
+    btn.setAttribute('aria-pressed', String(current === option.value));
+    btn.addEventListener('click', () => {
+      const select = document.getElementById('filter-status');
+      if (![...select.options].some((item) => item.value === option.value)) {
+        const opt = document.createElement('option');
+        opt.value = option.value;
+        opt.textContent = option.label;
+        select.appendChild(opt);
+      }
+      select.value = option.value;
+      updateMapFilter();
+      renderProjectList();
+      renderPhaseFilters();
+    });
+    group.appendChild(btn);
   }
 }
 
@@ -509,7 +710,14 @@ function setProjectHighlight(feature) {
   });
 }
 
-function selectProject(id) {
+function findProject(id) {
+  const key = String(id);
+  return projectsFc.features.find(
+    (f) => String(projectId(f.properties)) === key || String(f.properties.PROJECT_NO) === key,
+  );
+}
+
+function selectProject(id, options = {}) {
   selectedId = id != null ? String(id) : null;
   renderProjectList();
 
@@ -517,15 +725,17 @@ function selectProject(id) {
     document.getElementById('detail-panel').hidden = true;
     map?.getSource('proximity-rings')?.setData({ type: 'FeatureCollection', features: [] });
     setProjectHighlight(null);
+    if (!options.skipHash) setLocationHash({ view: currentView });
     return;
   }
 
-  const feature = projectsFc.features.find((f) => String(projectId(f.properties)) === selectedId);
+  const feature = findProject(selectedId);
   if (!feature) return;
 
   const p = feature.properties;
   const nearest = nearestStation(feature, stations);
   const center = featureCentroid(feature);
+  if (!options.skipHash) setLocationHash({ project: p.PROJECT_NO });
 
   document.getElementById('detail-panel').hidden = false;
   setProjectHighlight(feature);
@@ -545,6 +755,7 @@ function selectProject(id) {
     map.once('load', applyProjectMapView);
   }
 
+  const ringsHtml = `<p class="rings-note">${escapeHtml(RINGS_EXPLANATION)}</p>`;
   let proximityHtml = '';
   if (nearest) {
     const name = nearest.station.properties.name || 'SkyTrain station';
@@ -552,26 +763,27 @@ function selectProject(id) {
       <div class="proximity">
         <strong>Nearest SkyTrain:</strong> ${escapeHtml(name)}<br>
         <strong>Straight-line distance:</strong> ${formatDistance(nearest.distanceM)}<br>
-        <span>400 m and 800 m rings shown on map</span>
+        ${ringsHtml}
       </div>
     `;
   } else {
-    proximityHtml = '<div class="proximity">No SkyTrain station found in data.</div>';
+    proximityHtml = `<div class="proximity">No SkyTrain station found in data.${ringsHtml}</div>`;
   }
 
-  const review = underReviewLabel(p.STATUS);
   document.getElementById('detail-content').innerHTML = `
     <h2>${escapeHtml(p.display_title || projectTitle(p.DESCRIPTION))}</h2>
     <p class="project-no-detail">${escapeHtml(projectSubtitle(p))}</p>
     <dl>
-      <dt>Description</dt><dd>${escapeHtml((p.DESCRIPTION || '').replace(/\r\n/g, ' ').trim() || 'Not provided')}</dd>
-      <dt>Status</dt><dd>${review ? `${escapeHtml(review)} (${escapeHtml(p.STATUS || '')})` : escapeHtml(p.STATUS || 'Not provided')}</dd>
+      <dt>Status</dt><dd>${escapeHtml(p.STATUS || 'Not provided')}<span class="status-source">${escapeHtml(STATUS_SOURCE)}</span></dd>
+      <dt>Height</dt><dd class="height-fact">${escapeHtml(p.height_label || '')}</dd>
       <dt>Pilot area</dt><dd>${escapeHtml(pilotAreaLabel(p.pilot_area))}</dd>
-      <dt>Height</dt><dd>${p.height_m} m <span class="height-label">(${escapeHtml(p.height_label)})</span></dd>
+    </dl>
+    ${proximityHtml}
+    <dl>
+      <dt>Description</dt><dd>${escapeHtml((p.DESCRIPTION || '').replace(/\r\n/g, ' ').trim() || 'Not provided')}</dd>
       ${p.WEBLINK ? `<dt>Weblink</dt><dd><a href="${escapeAttr(p.WEBLINK)}" target="_blank" rel="noopener">${escapeHtml(p.WEBLINK)}</a></dd>` : ''}
       ${p.APPLICATION_DOCUMENTS_WEBLINK ? `<dt>Documents</dt><dd><a href="${escapeAttr(p.APPLICATION_DOCUMENTS_WEBLINK)}" target="_blank" rel="noopener">View documents</a></dd>` : ''}
     </dl>
-    ${proximityHtml}
   `;
 }
 
@@ -584,6 +796,24 @@ function renderAtAGlance() {
   el.innerHTML = `<h2>At a glance</h2><ul>${formatAtAGlance(atAGlance)
     .map((line) => `<li>${escapeHtml(line)}</li>`)
     .join('')}</ul>`;
+}
+
+function renderMethodology() {
+  const model = methodologyModel(sourcesMeta);
+  const retrieved = document.getElementById('data-retrieved');
+  if (model.retrieved) {
+    retrieved.hidden = false;
+    retrieved.textContent = model.retrieved;
+  }
+  const parts = [];
+  if (model.retrieved) parts.push(`<p>${escapeHtml(model.retrieved)}</p>`);
+  for (const section of model.sections) {
+    parts.push(`<h3>${escapeHtml(section.heading)}</h3>`);
+    for (const paragraph of section.paragraphs) {
+      parts.push(`<p>${escapeHtml(paragraph)}</p>`);
+    }
+  }
+  document.getElementById('methodology-content').innerHTML = parts.join('');
 }
 
 function renderAbout() {
@@ -717,9 +947,11 @@ async function main() {
   applyPilotAreaPresets(pilotAreas);
 
   populateStatusFilter();
+  renderPhaseFilters();
   renderProjectList();
   renderAtAGlance();
   renderAbout();
+  renderMethodology();
   initMap();
 }
 
