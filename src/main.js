@@ -5,8 +5,10 @@ import {
   loadSources,
   loadPilotAreas,
   getSkyTrainStations,
-  projectLabel,
+  enrichProjects,
   pilotAreaLabel,
+  SURREY_LICENCE_TEXT,
+  SURREY_LICENCE_URL,
 } from './data.js';
 import {
   nearestStation,
@@ -14,6 +16,11 @@ import {
   createProximityRingsGeoJSON,
   featureCentroid,
 } from './proximity.js';
+import { isShowcaseProject, isUnderReviewStatus, underReviewLabel } from './showcase.js';
+import { HEIGHT_LEGEND } from './heights.js';
+import { projectTitle, projectSubtitle } from './titles.js';
+import { computeAtAGlance, formatAtAGlance } from './summary.js';
+import { buildTourSteps, tourStepCamera } from './tour.js';
 
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -24,19 +31,61 @@ const CAMERA_PRESETS = {
   campbell_heights: { center: [-122.78, 49.085], zoom: 14, pitch: 50, bearing: 10 },
 };
 
+const AREA_COLORS = {
+  city_centre: { estimated: '#1e6fd4', illustrative: '#8eb8e8' },
+  fleetwood: { estimated: '#2a9a55', illustrative: '#8fd4a8' },
+  campbell_heights: { estimated: '#d96a28', illustrative: '#e8b08a' },
+  default: { estimated: '#555555', illustrative: '#aaaaaa' },
+};
+
 let map;
 let projectsFc;
-let skytrainFc;
+let amenitiesFc;
+let pilotAreasMeta;
 let stations = [];
 let selectedId = null;
 let sourcesMeta = [];
+let showAllApplications = false;
+let tourSteps = [];
+let tourIndex = -1;
+let atAGlance = null;
+
+const DEFAULT_PAINT = {
+  'fill-extrusion-color': [
+    'match',
+    ['get', 'height_source'],
+    'estimated',
+    [
+      'match',
+      ['get', 'pilot_area'],
+      'city_centre',
+      AREA_COLORS.city_centre.estimated,
+      'fleetwood',
+      AREA_COLORS.fleetwood.estimated,
+      'campbell_heights',
+      AREA_COLORS.campbell_heights.estimated,
+      AREA_COLORS.default.estimated,
+    ],
+    [
+      'match',
+      ['get', 'pilot_area'],
+      'city_centre',
+      AREA_COLORS.city_centre.illustrative,
+      'fleetwood',
+      AREA_COLORS.fleetwood.illustrative,
+      'campbell_heights',
+      AREA_COLORS.campbell_heights.illustrative,
+      AREA_COLORS.default.illustrative,
+    ],
+  ],
+};
 
 function buildApp() {
   const app = document.getElementById('app');
   app.innerHTML = `
     <header class="app-header" role="banner">
       <h1>Surrey Development Visualization</h1>
-      <span class="subtitle">Public-data prototype — ParalleX Labs Inc.</span>
+      <span class="subtitle">Public-data prototype by ParalleX Labs Inc.</span>
     </header>
     <aside class="sidebar" id="sidebar" aria-label="Project list and information">
       <div class="sidebar-tabs" role="tablist">
@@ -44,6 +93,12 @@ function buildApp() {
         <button role="tab" id="tab-about" aria-selected="false" aria-controls="panel-about">About</button>
       </div>
       <div class="sidebar-panel" id="panel-projects" role="tabpanel" aria-labelledby="tab-projects">
+        <section class="at-a-glance" id="at-a-glance" aria-label="At a glance summary"></section>
+        <label class="toggle-row">
+          <input type="checkbox" id="toggle-all-apps" aria-describedby="all-apps-hint">
+          All applications
+        </label>
+        <p id="all-apps-hint" class="hint">Default view shows approved showcase projects only.</p>
         <label for="search" class="visually-hidden">Search projects</label>
         <input type="search" id="search" class="search-input" placeholder="Search projects…" aria-label="Search projects">
         <div class="filter-row">
@@ -68,6 +123,7 @@ function buildApp() {
     <main class="map-area" id="main-content">
       <div id="map" role="application" aria-label="Interactive 3D map of Surrey development projects"></div>
       <div class="map-controls" aria-label="Map controls">
+        <button type="button" id="start-tour" class="tour-start">Start tour</button>
         <h2>View</h2>
         <div class="camera-presets" role="group" aria-label="Camera presets">
           <button type="button" data-preset="overview">Surrey</button>
@@ -81,24 +137,44 @@ function buildApp() {
         <label><input type="checkbox" id="toggle-plan" checked> City Centre Plan</label>
         <label><input type="checkbox" id="toggle-amenities" checked> Amenities</label>
         <label><input type="checkbox" id="toggle-buildings"> Existing buildings</label>
-        <p class="overlay-legend">Massing height is illustrative where public data has no height field.</p>
+        <h2 class="legend-heading">Massing legend</h2>
+        <ul class="height-legend" aria-label="Massing height legend">
+          <li><span class="swatch swatch-estimated" aria-hidden="true"></span> ${HEIGHT_LEGEND.estimated}</li>
+          <li><span class="swatch swatch-illustrative" aria-hidden="true"></span> ${HEIGHT_LEGEND.illustrative}</li>
+        </ul>
+      </div>
+      <div class="tour-panel" id="tour-panel" hidden role="dialog" aria-modal="true" aria-labelledby="tour-title">
+        <h2 id="tour-title"></h2>
+        <p id="tour-caption"></p>
+        <div class="tour-nav">
+          <button type="button" id="tour-prev">Previous</button>
+          <button type="button" id="tour-next">Next</button>
+          <button type="button" id="tour-exit">Exit</button>
+        </div>
       </div>
       <div class="detail-panel" id="detail-panel" hidden aria-live="polite">
         <button class="close-btn" id="close-detail" aria-label="Close project details">×</button>
         <div id="detail-content"></div>
       </div>
     </main>
+    <footer class="app-footer" role="contentinfo">
+      <p>${escapeHtml(SURREY_LICENCE_TEXT)} <a href="${escapeAttr(SURREY_LICENCE_URL)}" target="_blank" rel="noopener">City of Surrey Open Data licence</a>. This prototype is not affiliated with or endorsed by the City of Surrey.</p>
+    </footer>
   `;
-
-  const style = document.createElement('style');
-  style.textContent = '.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}';
-  document.head.appendChild(style);
 
   setupTabs();
   setupFilters();
   setupCameraPresets();
   setupOverlayToggles();
+  setupTourControls();
   document.getElementById('close-detail').addEventListener('click', () => selectProject(null));
+  document.getElementById('toggle-all-apps').addEventListener('change', (e) => {
+    showAllApplications = e.target.checked;
+    updateMapFilter();
+    populateStatusFilter();
+    renderProjectList();
+    renderAtAGlance();
+  });
 }
 
 function setupTabs() {
@@ -108,8 +184,7 @@ function setupTabs() {
       tabs.forEach((t) => {
         const selected = t === tab;
         t.setAttribute('aria-selected', String(selected));
-        const panel = document.getElementById(t.getAttribute('aria-controls'));
-        panel.hidden = !selected;
+        document.getElementById(t.getAttribute('aria-controls')).hidden = !selected;
       });
     });
   });
@@ -139,20 +214,33 @@ function setupOverlayToggles() {
     document.getElementById(id).addEventListener('change', (e) => {
       const vis = e.target.checked ? 'visible' : 'none';
       for (const layer of layers) {
-        if (map.getLayer(layer)) map.setLayoutProperty(layer, 'visibility', vis);
+        if (map?.getLayer(layer)) map.setLayoutProperty(layer, 'visibility', vis);
       }
     });
   }
 }
 
-function flyToPreset(name) {
-  const preset = CAMERA_PRESETS[name];
+function setupTourControls() {
+  document.getElementById('start-tour').addEventListener('click', () => startTour());
+  document.getElementById('tour-prev').addEventListener('click', () => stepTour(-1));
+  document.getElementById('tour-next').addEventListener('click', () => stepTour(1));
+  document.getElementById('tour-exit').addEventListener('click', () => endTour());
+  document.addEventListener('keydown', (e) => {
+    if (tourIndex < 0) return;
+    if (e.key === 'Escape') endTour();
+    if (e.key === 'ArrowRight') stepTour(1);
+    if (e.key === 'ArrowLeft') stepTour(-1);
+  });
+}
+
+function flyToPreset(name, options = {}) {
+  const preset = options.camera || CAMERA_PRESETS[name];
   if (!preset || !map) return;
-  if (prefersReducedMotion) {
-    map.jumpTo(preset);
-  } else {
-    map.flyTo({ ...preset, duration: 2000 });
-  }
+  const move = prefersReducedMotion || options.instant
+    ? () => map.jumpTo(preset)
+    : () => map.flyTo({ ...preset, duration: 2000 });
+  move();
+  map.once('moveend', () => map.triggerRepaint());
 }
 
 function initMap() {
@@ -167,15 +255,14 @@ function initMap() {
   });
 
   map.addControl(new maplibregl.NavigationControl(), 'top-left');
-  map.addControl(
-    new maplibregl.AttributionControl({ compact: true }),
-    'bottom-right',
-  );
+  map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
 
   map.on('load', () => {
     addSourcesAndLayers();
     map.on('click', 'projects-extrusion', (e) => {
-      if (e.features?.length) selectProject(e.features[0].properties.OBJECTID ?? e.features[0].properties.PROJECT_NO);
+      if (e.features?.length) {
+        selectProject(e.features[0].properties.OBJECTID ?? e.features[0].properties.PROJECT_NO);
+      }
     });
     map.on('mouseenter', 'projects-extrusion', () => {
       map.getCanvas().style.cursor = 'pointer';
@@ -183,6 +270,7 @@ function initMap() {
     map.on('mouseleave', 'projects-extrusion', () => {
       map.getCanvas().style.cursor = '';
     });
+    updateMapFilter();
   });
 }
 
@@ -195,6 +283,7 @@ function addSourcesAndLayers() {
   map.addSource('skytrain-stations', { type: 'geojson', data: window.__skytrainStationsFc });
   map.addSource('amenities', { type: 'geojson', data: window.__amenitiesFc });
   map.addSource('proximity-rings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addSource('project-highlight', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 
   map.addLayer({
     id: 'city-centre-plan-fill',
@@ -237,17 +326,22 @@ function addSourcesAndLayers() {
     type: 'fill-extrusion',
     source: 'projects',
     paint: {
-      'fill-extrusion-color': [
-        'match',
-        ['get', 'pilot_area'],
-        'city_centre', '#1e4d8c',
-        'fleetwood', '#2a7a4b',
-        'campbell_heights', '#c45c26',
-        '#555',
-      ],
+      ...DEFAULT_PAINT,
       'fill-extrusion-height': ['get', 'height_m'],
       'fill-extrusion-base': 0,
-      'fill-extrusion-opacity': 0.75,
+      'fill-extrusion-opacity': 0.8,
+    },
+  });
+
+  map.addLayer({
+    id: 'project-highlight-extrusion',
+    type: 'fill-extrusion',
+    source: 'project-highlight',
+    paint: {
+      'fill-extrusion-color': '#ffcc00',
+      'fill-extrusion-height': ['get', 'height_m'],
+      'fill-extrusion-base': 0,
+      'fill-extrusion-opacity': 0.95,
     },
   });
 
@@ -304,9 +398,19 @@ function addSourcesAndLayers() {
   });
 }
 
+function updateMapFilter() {
+  if (!map?.getLayer('projects-extrusion')) return;
+  map.setFilter(
+    'projects-extrusion',
+    showAllApplications ? null : ['==', ['get', 'showcase'], true],
+  );
+}
+
 function populateStatusFilter() {
-  const statuses = new Set(projectsFc.features.map((f) => f.properties.STATUS).filter(Boolean));
+  const visible = getVisibleProjects();
+  const statuses = new Set(visible.map((f) => f.properties.STATUS).filter(Boolean));
   const select = document.getElementById('filter-status');
+  select.innerHTML = '<option value="">All statuses</option>';
   for (const s of [...statuses].sort()) {
     const opt = document.createElement('option');
     opt.value = s;
@@ -315,16 +419,20 @@ function populateStatusFilter() {
   }
 }
 
+function getVisibleProjects() {
+  return projectsFc.features.filter((f) => showAllApplications || isShowcaseProject(f.properties));
+}
+
 function getFilteredProjects() {
   const q = document.getElementById('search').value.toLowerCase();
   const area = document.getElementById('filter-area').value;
   const status = document.getElementById('filter-status').value;
-  return projectsFc.features.filter((f) => {
+  return getVisibleProjects().filter((f) => {
     const p = f.properties;
     if (area && p.pilot_area !== area) return false;
     if (status && p.STATUS !== status) return false;
     if (q) {
-      const hay = `${p.PROJECT_NO} ${p.DESCRIPTION} ${p.STATUS}`.toLowerCase();
+      const hay = `${p.PROJECT_NO} ${p.DESCRIPTION} ${p.display_title} ${p.STATUS}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -342,11 +450,12 @@ function renderProjectList() {
     btn.type = 'button';
     btn.setAttribute('aria-current', String(projectId(p) === selectedId));
     btn.dataset.id = projectId(p);
+    const review = underReviewLabel(p.STATUS);
     btn.innerHTML = `
-      <strong>${escapeHtml(p.PROJECT_NO || 'N/A')}</strong><br>
-      <span>${escapeHtml(truncate(p.DESCRIPTION, 80))}</span><br>
+      <strong>${escapeHtml(p.display_title || projectTitle(p.DESCRIPTION))}</strong><br>
+      <span class="project-no">${escapeHtml(projectSubtitle(p))}</span><br>
       <span class="area-tag">${escapeHtml(pilotAreaLabel(p.pilot_area))}</span>
-      <span class="status">${escapeHtml(p.STATUS || '')}</span>
+      ${review ? `<span class="under-review-label">${escapeHtml(review)}</span>` : `<span class="status">${escapeHtml(p.STATUS || '')}</span>`}
     `;
     btn.addEventListener('click', () => selectProject(projectId(p)));
     li.appendChild(btn);
@@ -358,16 +467,22 @@ function projectId(props) {
   return props.OBJECTID ?? props.PROJECT_NO;
 }
 
+function setProjectHighlight(feature) {
+  if (!map?.getSource('project-highlight')) return;
+  map.getSource('project-highlight').setData({
+    type: 'FeatureCollection',
+    features: feature ? [feature] : [],
+  });
+}
+
 function selectProject(id) {
   selectedId = id != null ? String(id) : null;
   renderProjectList();
 
   if (id === null) {
     document.getElementById('detail-panel').hidden = true;
-    map.getSource('proximity-rings').setData({ type: 'FeatureCollection', features: [] });
-    if (map.getLayer('projects-extrusion')) {
-      map.setPaintProperty('projects-extrusion', 'fill-extrusion-opacity', 0.75);
-    }
+    map?.getSource('proximity-rings')?.setData({ type: 'FeatureCollection', features: [] });
+    setProjectHighlight(null);
     return;
   }
 
@@ -378,32 +493,18 @@ function selectProject(id) {
   const nearest = nearestStation(feature, stations);
   const center = featureCentroid(feature);
 
-  const panel = document.getElementById('detail-panel');
-  const content = document.getElementById('detail-content');
-  panel.hidden = false;
+  document.getElementById('detail-panel').hidden = false;
+  setProjectHighlight(feature);
 
   if (map?.loaded()) {
     if (center && map.getSource('proximity-rings')) {
-      const rings = createProximityRingsGeoJSON(center);
-      map.getSource('proximity-rings').setData(rings);
+      map.getSource('proximity-rings').setData(createProximityRingsGeoJSON(center));
       if (prefersReducedMotion) {
         map.jumpTo({ center, zoom: 16, pitch: 50 });
       } else {
         map.flyTo({ center, zoom: 16, pitch: 50, duration: 1500 });
       }
-    }
-
-    const highlightId = projectId(p);
-    if (map.getLayer('projects-extrusion')) {
-      map.setPaintProperty('projects-extrusion', 'fill-extrusion-opacity', [
-        'case',
-        ['any',
-          ['==', ['to-string', ['get', 'OBJECTID']], String(highlightId)],
-          ['==', ['get', 'PROJECT_NO'], String(highlightId)],
-        ],
-        1,
-        0.45,
-      ]);
+      map.once('moveend', () => map.triggerRepaint());
     }
   }
 
@@ -421,17 +522,15 @@ function selectProject(id) {
     proximityHtml = '<div class="proximity">No SkyTrain station found in data.</div>';
   }
 
-  const heightNote = p.height_source === 'illustrative'
-    ? '<p class="illustrative-note">Massing height is illustrative (no height in source data).</p>'
-    : '';
-
-  content.innerHTML = `
-    <h2>${escapeHtml(p.PROJECT_NO || 'Project')}</h2>
+  const review = underReviewLabel(p.STATUS);
+  document.getElementById('detail-content').innerHTML = `
+    <h2>${escapeHtml(p.display_title || projectTitle(p.DESCRIPTION))}</h2>
+    <p class="project-no-detail">${escapeHtml(projectSubtitle(p))}</p>
     <dl>
-      <dt>Description</dt><dd>${escapeHtml(p.DESCRIPTION || '—')}</dd>
-      <dt>Status</dt><dd>${escapeHtml(p.STATUS || '—')}</dd>
+      <dt>Description</dt><dd>${escapeHtml((p.DESCRIPTION || '').replace(/\r\n/g, ' ').trim() || 'Not provided')}</dd>
+      <dt>Status</dt><dd>${review ? `${escapeHtml(review)} (${escapeHtml(p.STATUS || '')})` : escapeHtml(p.STATUS || 'Not provided')}</dd>
       <dt>Pilot area</dt><dd>${escapeHtml(pilotAreaLabel(p.pilot_area))}</dd>
-      <dt>Height</dt><dd>${p.height_m} m${heightNote}</dd>
+      <dt>Height</dt><dd>${p.height_m} m <span class="height-label">(${escapeHtml(p.height_label)})</span></dd>
       ${p.WEBLINK ? `<dt>Weblink</dt><dd><a href="${escapeAttr(p.WEBLINK)}" target="_blank" rel="noopener">${escapeHtml(p.WEBLINK)}</a></dd>` : ''}
       ${p.APPLICATION_DOCUMENTS_WEBLINK ? `<dt>Documents</dt><dd><a href="${escapeAttr(p.APPLICATION_DOCUMENTS_WEBLINK)}" target="_blank" rel="noopener">View documents</a></dd>` : ''}
     </dl>
@@ -439,22 +538,101 @@ function selectProject(id) {
   `;
 }
 
+function renderAtAGlance() {
+  atAGlance = computeAtAGlance(
+    showAllApplications ? projectsFc.features : projectsFc.features.filter((f) => isShowcaseProject(f.properties)),
+    stations,
+  );
+  const el = document.getElementById('at-a-glance');
+  el.innerHTML = `<h2>At a glance</h2><ul>${formatAtAGlance(atAGlance)
+    .map((line) => `<li>${escapeHtml(line)}</li>`)
+    .join('')}</ul>`;
+}
+
 function renderAbout() {
   const el = document.getElementById('about-content');
-  let licenceHtml = sourcesMeta
-    .map(
-      (s) =>
-        `<div class="licence-item"><strong>${escapeHtml(s.file)}</strong> (${s.feature_count} features)<br>${escapeHtml(s.licence)}</div>`,
-    )
+  const licenceHtml = sourcesMeta
+    .map((s) => {
+      const licence = s.licence?.includes('City of Surrey')
+        ? `${SURREY_LICENCE_TEXT} <a href="${escapeAttr(SURREY_LICENCE_URL)}" target="_blank" rel="noopener">Licence details</a>`
+        : escapeHtml(s.licence);
+      return `<div class="licence-item"><strong>${escapeHtml(s.file)}</strong> (${s.feature_count} features)<br>${licence}</div>`;
+    })
     .join('');
 
   el.innerHTML = `
     <p>Public-data prototype by <strong>ParalleX Labs Inc.</strong> for City of Surrey RFP 1220-030-2026-063.</p>
-    <p>Data: City of Surrey Open Data and OpenStreetMap contributors. Massing is illustrative where public data has no height.</p>
-    <p>This is a prototype demonstration. It is not a City product and does not imply City endorsement.</p>
-    <h3>Data sources (${projectsFc.features.length} projects)</h3>
+    <p>${escapeHtml(SURREY_LICENCE_TEXT)} <a href="${escapeAttr(SURREY_LICENCE_URL)}" target="_blank" rel="noopener">City of Surrey Open Data licence</a>.</p>
+    <p>This prototype is not affiliated with or endorsed by the City of Surrey.</p>
+    <p>Data: City of Surrey Open Data and OpenStreetMap contributors. Estimated heights use stated storeys × 3.2 m; other massing is illustrative.</p>
+    <h3>Data sources (${projectsFc.features.length} applications)</h3>
     ${licenceHtml}
   `;
+}
+
+function startTour() {
+  tourSteps = buildTourSteps(projectsFc, window.__skytrainFc, amenitiesFc, pilotAreasMeta);
+  tourIndex = 0;
+  showTourStep();
+}
+
+function endTour() {
+  tourIndex = -1;
+  const panel = document.getElementById('tour-panel');
+  panel.hidden = true;
+  announce('Tour ended');
+}
+
+function stepTour(delta) {
+  if (tourIndex < 0) return;
+  const next = tourIndex + delta;
+  if (next < 0 || next >= tourSteps.length) return;
+  tourIndex = next;
+  showTourStep();
+}
+
+function showTourStep() {
+  const step = tourSteps[tourIndex];
+  const panel = document.getElementById('tour-panel');
+  panel.hidden = false;
+  document.getElementById('tour-title').textContent = step.title;
+  document.getElementById('tour-caption').textContent = step.caption;
+  document.getElementById('tour-prev').disabled = tourIndex === 0;
+  document.getElementById('tour-next').disabled = tourIndex === tourSteps.length - 1;
+  announce(`Tour step ${tourIndex + 1} of ${tourSteps.length}: ${step.title}. ${step.caption}`);
+
+  if (step.toggles) {
+    if (step.toggles.skytrain != null) {
+      document.getElementById('toggle-skytrain').checked = step.toggles.skytrain;
+      document.getElementById('toggle-skytrain').dispatchEvent(new Event('change'));
+    }
+    if (step.toggles.plan != null) {
+      document.getElementById('toggle-plan').checked = step.toggles.plan;
+      document.getElementById('toggle-plan').dispatchEvent(new Event('change'));
+    }
+  }
+
+  const customCamera = tourStepCamera(step, pilotAreasMeta, projectsFc);
+  if (customCamera) {
+    flyToPreset(null, { camera: customCamera, instant: prefersReducedMotion });
+  } else if (step.preset) {
+    flyToPreset(step.preset, { instant: prefersReducedMotion });
+  }
+
+  if (step.focusId) selectProject(step.focusId);
+}
+
+function announce(message) {
+  let live = document.getElementById('sr-announcer');
+  if (!live) {
+    live = document.createElement('div');
+    live.id = 'sr-announcer';
+    live.className = 'visually-hidden';
+    live.setAttribute('aria-live', 'polite');
+    live.setAttribute('aria-atomic', 'true');
+    document.body.appendChild(live);
+  }
+  live.textContent = message;
 }
 
 function escapeHtml(s) {
@@ -465,11 +643,6 @@ function escapeHtml(s) {
 
 function escapeAttr(s) {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-}
-
-function truncate(s, n) {
-  if (!s) return '';
-  return s.length > n ? s.slice(0, n - 1) + '…' : s;
 }
 
 async function main() {
@@ -487,22 +660,21 @@ async function main() {
       loadPilotAreas(),
     ]);
 
-  projectsFc = projects;
-  skytrainFc = skytrain;
+  projectsFc = enrichProjects(projects);
+  amenitiesFc = amenities;
+  pilotAreasMeta = pilotAreas;
   stations = getSkyTrainStations(skytrain);
   sourcesMeta = sources;
 
   window.__buildingsFc = buildings;
   window.__planFc = plan;
   window.__ftdaFc = ftda;
+  window.__skytrainFc = skytrain;
   window.__skytrainLinesFc = {
     type: 'FeatureCollection',
     features: skytrain.features.filter((f) => f.geometry?.type === 'LineString'),
   };
-  window.__skytrainStationsFc = {
-    type: 'FeatureCollection',
-    features: stations,
-  };
+  window.__skytrainStationsFc = { type: 'FeatureCollection', features: stations };
   window.__amenitiesFc = amenities;
 
   if (pilotAreas) {
@@ -516,6 +688,7 @@ async function main() {
 
   populateStatusFilter();
   renderProjectList();
+  renderAtAGlance();
   renderAbout();
   initMap();
 }
