@@ -12,9 +12,14 @@ export const RINGS_EXPLANATION =
 export const STATUS_SOURCE = 'Source: City of Surrey Development Applications';
 
 export const ILLUSTRATIVE_HEIGHT_LABEL =
-  'Height not stated in the application. Illustrative massing only.';
+  'Illustrative height: no storey count could be read from the application';
 
-export const MASSING_NOTE = 'Massing is schematic, not an architectural rendering.';
+export const EXTRUSION_NAME = 'Schematic application-area extrusion';
+
+export const EXTRUSION_LIMIT =
+  'Application areas are extruded uniformly for illustration. They are not proposed building footprints or approved architectural massing.';
+
+export const MASSING_NOTE = EXTRUSION_LIMIT;
 
 export const CONTEXT_LINE =
   'Development context only. Property availability and investment terms are not shown.';

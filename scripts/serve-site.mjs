@@ -18,6 +18,7 @@ const TYPES = {
   '.webp': 'image/webp',
   '.map': 'application/json; charset=utf-8',
   '.woff2': 'font/woff2',
+  '.md': 'text/markdown; charset=utf-8',
 };
 
 function fileFor(urlPath) {

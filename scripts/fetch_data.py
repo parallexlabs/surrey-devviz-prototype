@@ -23,6 +23,7 @@ SURREY_LICENCE = (
     "(https://opendata-surrey.hub.arcgis.com/pages/55089a19491a4fe59a41e059fd8af708)"
 )
 OSM_LICENCE = "© OpenStreetMap contributors (ODbL)"
+OSM_LICENCE_URL = "https://opendatacommons.org/licenses/odbl/1-0/"
 
 SOURCES = []
 
@@ -49,9 +50,6 @@ ACTIVE_STATUSES = (
     "Under Review",
     "Initial Review",
 )
-
-ILLUSTRATIVE_HEIGHT_M = 21.0  # ~6 storeys at 3.5 m, labelled illustrative in UI
-
 
 def http_get(url, timeout=120):
     req = urllib.request.Request(url, headers={"User-Agent": "surrey-devviz-demo/0.1"})
@@ -107,50 +105,100 @@ def envelope_json(bbox):
     )
 
 
-def fetch_arcgis_geojson(layer_url, where, out_fields, envelope=None, page_size=1000):
+class ArcGISError(RuntimeError):
+    pass
+
+
+def _query_params(where, out_fields, envelope, offset, page_size):
+    params = {
+        "where": where,
+        "outFields": out_fields,
+        "outSR": "4326",
+        "f": "geojson",
+        "resultOffset": str(offset),
+        "resultRecordCount": str(page_size),
+    }
+    if envelope:
+        params["geometry"] = envelope_json(envelope)
+        params["geometryType"] = "esriGeometryEnvelope"
+        params["spatialRel"] = "esriSpatialRelIntersects"
+        params["inSR"] = "4326"
+    return params
+
+
+def arcgis_match_count(layer_url, where, envelope=None, get_json=None):
+    get_json = get_json or http_get
+    params = {"where": where, "returnCountOnly": "true", "f": "json"}
+    if envelope:
+        params["geometry"] = envelope_json(envelope)
+        params["geometryType"] = "esriGeometryEnvelope"
+        params["spatialRel"] = "esriSpatialRelIntersects"
+        params["inSR"] = "4326"
+    data = get_json(f"{layer_url}/query?" + urllib.parse.urlencode(params))
+    if not isinstance(data, dict) or data.get("error"):
+        raise ArcGISError(f"ArcGIS count failed: {data}")
+    count = data.get("count")
+    if not isinstance(count, int) or count < 0:
+        raise ArcGISError(f"ArcGIS count missing: {data}")
+    return count
+
+
+def fetch_arcgis_geojson(layer_url, where, out_fields, envelope=None, page_size=1000, get_json=None):
+    get_json = get_json or http_get
+    expected = arcgis_match_count(layer_url, where, envelope, get_json)
     features = []
     offset = 0
+    seen = set()
     while True:
-        params = {
-            "where": where,
-            "outFields": out_fields,
-            "outSR": "4326",
-            "f": "geojson",
-            "resultOffset": str(offset),
-            "resultRecordCount": str(page_size),
-        }
-        if envelope:
-            params["geometry"] = envelope_json(envelope)
-            params["geometryType"] = "esriGeometryEnvelope"
-            params["spatialRel"] = "esriSpatialRelIntersects"
-            params["inSR"] = "4326"
-        url = f"{layer_url}/query?" + urllib.parse.urlencode(params)
-        data = http_get(url)
-        batch = data.get("features", [])
-        if not batch:
-            break
+        if offset in seen:
+            raise ArcGISError("ArcGIS pagination offset did not advance")
+        seen.add(offset)
+        params = _query_params(where, out_fields, envelope, offset, page_size)
+        data = get_json(f"{layer_url}/query?" + urllib.parse.urlencode(params))
+        if not isinstance(data, dict) or data.get("error"):
+            raise ArcGISError(f"ArcGIS query failed: {data}")
+        batch = data.get("features")
+        if not isinstance(batch, list):
+            raise ArcGISError("ArcGIS response has no features list")
         features.extend(batch)
-        if len(batch) < page_size:
+        more = bool((data.get("properties") or {}).get("exceededTransferLimit") or data.get("exceededTransferLimit"))
+        if not batch or not more:
             break
-        offset += page_size
+        offset += len(batch)
+    if len(features) != expected:
+        raise ArcGISError(f"ArcGIS returned {len(features)} features, returnCountOnly said {expected}")
     return {"type": "FeatureCollection", "features": features}
 
 
-def write_geojson(name, fc, source_url, layer, query, licence):
+def write_text_atomic(path, text):
+    path = Path(path)
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(path)
+
+
+def write_json_atomic(path, payload, indent=None):
+    text = json.dumps(payload, indent=indent)
+    if not text.endswith("\n"):
+        text += "\n"
+    write_text_atomic(path, text)
+
+
+def write_geojson(name, fc, source_url, layer, query, licence, licence_url=None):
     path = DATA_DIR / f"{name}.geojson"
-    with open(path, "w") as f:
-        json.dump(fc, f)
-    SOURCES.append(
-        {
-            "file": name + ".geojson",
-            "source_url": source_url,
-            "layer": layer,
-            "query": query,
-            "retrieved_at": datetime.now(timezone.utc).isoformat(),
-            "feature_count": len(fc.get("features", [])),
-            "licence": licence,
-        }
-    )
+    write_json_atomic(path, fc)
+    entry = {
+        "file": name + ".geojson",
+        "source_url": source_url,
+        "layer": layer,
+        "query": query,
+        "retrieved_at": datetime.now(timezone.utc).isoformat(),
+        "feature_count": len(fc.get("features", [])),
+        "licence": licence,
+    }
+    if licence_url:
+        entry["licence_url"] = licence_url
+    SOURCES.append(entry)
     print(f"  wrote {path.name}: {len(fc['features'])} features")
     return path
 
@@ -346,36 +394,87 @@ def overpass_query(query):
     raise last_error
 
 
-def osm_to_geojson(osm_data):
+def close_ring(coords):
+    if coords and coords[0] != coords[-1]:
+        return coords + [coords[0]]
+    return coords
+
+
+def coords_from_osm_geometry(geometry):
+    return close_ring([[point["lon"], point["lat"]] for point in geometry])
+
+
+def relation_geometry(element):
+    outers = []
+    inners = []
+    for member in element.get("members") or []:
+        geometry = member.get("geometry")
+        if not geometry:
+            continue
+        ring = coords_from_osm_geometry(geometry)
+        if len(ring) < 4:
+            continue
+        if member.get("role") == "inner":
+            inners.append(ring)
+        else:
+            outers.append(ring)
+    if not outers:
+        return None
+    if len(outers) == 1:
+        return {"type": "Polygon", "coordinates": [outers[0], *inners]}
+    polygons = []
+    for outer in outers:
+        shell = Polygon(outer)
+        holes = []
+        for inner in inners:
+            hole = Polygon(inner)
+            if shell.covers(hole.representative_point()):
+                holes.append(inner)
+        polygons.append([outer, *holes])
+    if len(polygons) == 1:
+        return {"type": "Polygon", "coordinates": polygons[0]}
+    return {"type": "MultiPolygon", "coordinates": polygons}
+
+
+def area_marker(geometry, props):
+    point = shape(geometry).representative_point()
+    marker_props = dict(props)
+    marker_props["representative_point"] = True
+    return {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [point.x, point.y]},
+        "properties": marker_props,
+    }
+
+
+def osm_to_geojson(osm_data, area_markers=False):
     features = []
     for el in osm_data.get("elements", []):
         tags = el.get("tags", {})
         if el["type"] == "node":
             geom = {"type": "Point", "coordinates": [el["lon"], el["lat"]]}
         elif el["type"] == "way" and "geometry" in el:
-            coords = [[n["lon"], n["lat"]] for n in el["geometry"]]
+            coords = [[point["lon"], point["lat"]] for point in el["geometry"]]
             if tags.get("area") == "yes" or tags.get("leisure") == "park":
+                coords = close_ring(coords)
+                if len(coords) < 4:
+                    continue
                 geom = {"type": "Polygon", "coordinates": [coords]}
             else:
                 geom = {"type": "LineString", "coordinates": coords}
         elif el["type"] == "relation":
-            continue
+            geom = relation_geometry(el)
+            if not geom:
+                continue
         else:
             continue
         props = dict(tags)
         props["osm_id"] = el.get("id")
         props["osm_type"] = el.get("type")
         features.append({"type": "Feature", "geometry": geom, "properties": props})
+        if area_markers and geom["type"] in ("Polygon", "MultiPolygon"):
+            features.append(area_marker(geom, props))
     return {"type": "FeatureCollection", "features": features}
-
-
-def add_height_to_projects(fc):
-    for f in fc["features"]:
-        props = f["properties"]
-        props["height_m"] = ILLUSTRATIVE_HEIGHT_M
-        props["height_source"] = "illustrative"
-        props["pilot_area"] = props.get("pilot_area", "unknown")
-    return fc
 
 
 def main():
@@ -479,9 +578,7 @@ def main():
             "outline": rounded_geometry(outline_geometry(campbell_geom)),
         },
     }
-    with open(DATA_DIR / "pilot_areas.json", "w") as f:
-        json.dump(pilot_meta, f)
-        f.write("\n")
+    write_json_atomic(DATA_DIR / "pilot_areas.json", pilot_meta)
 
     print("Fetching development applications in pilot areas…")
     status_list = ",".join(f"'{s}'" for s in ACTIVE_STATUSES)
@@ -520,9 +617,7 @@ def main():
     for name, count in counts.items():
         print(f"  {name} inside polygon: {count} projects")
 
-    projects_fc = add_height_to_projects(
-        {"type": "FeatureCollection", "features": assigned}
-    )
+    projects_fc = {"type": "FeatureCollection", "features": assigned}
     write_geojson(
         "development_projects",
         projects_fc,
@@ -569,9 +664,7 @@ def main():
         previous_sources = json.loads(sources_path.read_text())
 
     def write_sources():
-        with open(sources_path, "w") as handle:
-            json.dump(SOURCES, handle, indent=2)
-            handle.write("\n")
+        write_json_atomic(sources_path, SOURCES, indent=2)
 
     def keep_previous(filename):
         if any(entry.get("file") == filename for entry in SOURCES):
@@ -604,6 +697,7 @@ def main():
             "SkyTrain lines and stations in Surrey",
             "railway=light_rail, station=light_rail|subway",
             OSM_LICENCE,
+            licence_url=OSM_LICENCE_URL,
         )
     except Exception as exc:
         print(f"  SkyTrain download failed: {exc}")
@@ -627,7 +721,7 @@ def main():
     """
     try:
         amenities_osm = overpass_query(overpass_amenities)
-        amenities_fc = osm_to_geojson(amenities_osm)
+        amenities_fc = osm_to_geojson(amenities_osm, area_markers=True)
         write_geojson(
             "amenities",
             amenities_fc,
@@ -635,6 +729,7 @@ def main():
             "Civic facilities, libraries, recreation, parks in Surrey",
             "townhall, library, university, sports_centre, park",
             OSM_LICENCE,
+            licence_url=OSM_LICENCE_URL,
         )
     except Exception as exc:
         print(f"  Amenities download failed: {exc}")

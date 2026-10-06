@@ -28,13 +28,30 @@ const WORD_NUMBERS = {
   fifty: 50,
 };
 
-/** Patterns for stated storeys in application descriptions. */
-const STOREY_PATTERNS = [
-  /\b(\d+)\s*[- ]?\s*storeys?\b/i,
-  /\b(\d+)\s*[- ]?\s*stories\b/i,
-  /\b(?<![a-z-])(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty)\s*[- ]?\s*storeys?\b/i,
-  /\b(?<![a-z-])(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty)\s*[- ]?\s*stories\b/i,
-];
+const ONES = 'one|two|three|four|five|six|seven|eight|nine';
+const TEENS = 'ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen';
+const TENS = 'twenty|thirty|forty|fifty';
+const WORD_NUMBER = `(?:(?:${TENS})(?:[-\\s]+(?:${ONES}))?|(?:${TEENS})|(?:${ONES}))`;
+
+function wordToNumber(raw) {
+  const parts = String(raw).toLowerCase().split(/[-\s]+/).filter(Boolean);
+  if (parts.length === 1) return WORD_NUMBERS[parts[0]] ?? null;
+  if (parts.length === 2 && WORD_NUMBERS[parts[0]] >= 20 && WORD_NUMBERS[parts[1]] < 10) {
+    return WORD_NUMBERS[parts[0]] + WORD_NUMBERS[parts[1]];
+  }
+  return null;
+}
+
+function collectStoreys(text, pattern, parse) {
+  const found = [];
+  for (const match of text.matchAll(pattern)) {
+    const after = text.slice(match.index + match[0].length);
+    if (/^\s+of\s+(?:underground\s+)?parking\b/i.test(after)) continue;
+    const value = parse(match[1]);
+    if (Number.isFinite(value) && value > 0 && value <= 120) found.push(value);
+  }
+  return found;
+}
 
 const ILLUSTRATIVE_HEIGHTS = {
   apartment: 45,
@@ -49,14 +66,19 @@ const ILLUSTRATIVE_HEIGHTS = {
 
 export function parseStoreys(description) {
   const text = (description || '').replace(/\r\n/g, ' ');
-  for (const pattern of STOREY_PATTERNS) {
-    const match = text.match(pattern);
-    if (!match) continue;
-    const raw = match[1].toLowerCase();
-    const value = WORD_NUMBERS[raw] ?? Number.parseInt(raw, 10);
-    if (Number.isFinite(value) && value > 0 && value <= 120) return value;
-  }
-  return null;
+  const digit = collectStoreys(
+    text,
+    /(?<![\d.])(\d+)\s*[- ]?\s*stor(?:eys?|ies)\b/gi,
+    (raw) => Number.parseInt(raw, 10),
+  );
+  const words = collectStoreys(
+    text,
+    new RegExp(String.raw`\b(?<![a-z-])(${WORD_NUMBER})\s*[- ]?\s*stor(?:eys?|ies)\b`, 'gi'),
+    wordToNumber,
+  );
+  const found = [...digit, ...words];
+  if (!found.length) return null;
+  return Math.max(...found);
 }
 
 export function illustrativeHeightMeters(description) {

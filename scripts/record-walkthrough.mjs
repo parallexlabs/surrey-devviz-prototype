@@ -85,6 +85,7 @@ async function main() {
   });
   const page = await context.newPage();
   await page.addInitScript(() => {
+    window.__surreyTest = true;
     window.__cameraInstant = true;
   });
 

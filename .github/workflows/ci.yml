@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
@@ -14,9 +21,22 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
 
+      - run: python3 -m pip install shapely
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - run: npm run build:site
+      - name: Check the site build
+        run: |
+          test -f dist-site/index.html
+          test -f dist-site/data/development_projects.geojson
+          test -f dist-site/data/skytrain.geojson
+          test -f dist-site/data/amenities.geojson
+          test -f dist-site/data/SOURCES.json
+          test -f dist-site/data/README.md
+          grep -q 'OpenStreetMap contributors' dist-site/data/README.md
+          grep -q 'opendatacommons.org/licenses/odbl' dist-site/data/README.md
+          grep -q 'Open Government License' dist-site/data/README.md

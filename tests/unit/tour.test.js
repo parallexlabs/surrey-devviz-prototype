@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { buildTourSteps } from '../../src/tour.js';
+import { buildTourSteps, skytrainSegmentPhrase } from '../../src/tour.js';
 
 const projectsFc = {
   features: [
@@ -53,6 +53,8 @@ describe('buildTourSteps', () => {
       'Campbell Heights',
     ]);
     expect(steps[0].caption).toMatch(/showcase projects are within 800 m straight-line of a SkyTrain station/);
+    expect(steps[0].caption).not.toMatch(/in view/);
+    expect(steps[0].caption).toMatch(/in the loaded transit data/);
     expect(steps[0].layers).toEqual({ skytrain: true, civic: true, plan: true });
     expect(steps[1].caption).toMatch(/21-0313-00/);
     expect(steps[1].caption).toMatch(/67 storeys/);
@@ -64,5 +66,27 @@ describe('buildTourSteps', () => {
     expect(steps[3].layers).toEqual({});
     expect(steps[4].caption).toMatch(/0 selected records in this prototype are in Campbell Heights/);
     expect(steps[0].caption.split('.').filter(Boolean)).toHaveLength(1);
+  });
+
+  it('counts SkyTrain segments inside the area and ignores the rest', () => {
+    const square = {
+      type: 'Polygon',
+      coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
+    };
+    const lines = {
+      features: [
+        {
+          geometry: { type: 'LineString', coordinates: [[0.2, 0.2], [0.8, 0.8]] },
+          properties: { railway: 'light_rail' },
+        },
+        {
+          geometry: { type: 'LineString', coordinates: [[10, 10], [11, 11]] },
+          properties: { railway: 'light_rail' },
+        },
+      ],
+    };
+    expect(skytrainSegmentPhrase(lines, square)).toBe('1 SkyTrain segments in the area');
+    expect(skytrainSegmentPhrase(lines, null)).toBe('2 SkyTrain segments in the loaded transit data');
+    expect(skytrainSegmentPhrase(lines, null)).not.toMatch(/in view/);
   });
 });

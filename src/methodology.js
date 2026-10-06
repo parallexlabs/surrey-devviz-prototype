@@ -1,5 +1,6 @@
 import { SHOWCASE_EXCLUSION_RULES, SHOWCASE_INCLUSION_RULES } from './showcase.js';
 import { latestRetrievalDate, publicDataRetrievedLabel } from './data.js';
+import { EXTRUSION_LIMIT, EXTRUSION_NAME, ILLUSTRATIVE_HEIGHT_LABEL } from './copy.js';
 
 function sentences(rules) {
   return rules.map((rule) => rule.reason.replace(/\.$/, '')).join('. ');
@@ -26,7 +27,8 @@ export function methodologyModel(sources, buildId = 'dev') {
       {
         heading: 'Showcase rules',
         paragraphs: [
-          'The default view shows approved applications that match a development rule and do not match an exclusion rule.',
+          'The showcase is a rule-based selection using the source status, including Conditional Approval. Application status is not a building permit and does not say whether construction has started.',
+          'The default view shows records that match a development rule and do not match an exclusion rule.',
           `Included: ${sentences(SHOWCASE_INCLUSION_RULES)}.`,
           `Left out of the showcase: ${sentences(SHOWCASE_EXCLUSION_RULES)}.`,
           'Choose All applications to see every active application in the data, including those still under review.',
@@ -35,14 +37,15 @@ export function methodologyModel(sources, buildId = 'dev') {
       {
         heading: 'Height method',
         paragraphs: [
-          'Where the application states a number of storeys, the model multiplies that number by 3.2 metres. That estimated height is not a surveyed or approved height.',
-          'Where the public application does not state a height or a storey count, the model draws illustrative massing. The panel says the height was not stated.',
+          'Where the application states a number of storeys, the model multiplies that number by 3.2 metres. That estimated height is not a surveyed or approved height. Heights written in metres are not read.',
+          `Where no storey count could be read from the application, the drawing uses an illustrative height. The panel says: ${ILLUSTRATIVE_HEIGHT_LABEL}.`,
+          `${EXTRUSION_NAME}. ${EXTRUSION_LIMIT}`,
         ],
       },
       {
         heading: 'Limitations',
         paragraphs: [
-          'Campbell Heights is the union of the City of Surrey Campbell Heights Local Area Plan and South Campbell Heights Local Area Plan. A project is placed in a pilot area only when its location is inside that official polygon.',
+          'Campbell Heights is the union of the City of Surrey Campbell Heights Local Area Plan and South Campbell Heights Local Area Plan. A project is placed in a pilot area only when its representative point is inside that plan geometry. The drawn outline is simplified and does not by itself show that the whole site is inside the plan.',
           'SkyTrain lines and stations come from OpenStreetMap and may omit planned extensions.',
           '400 m and 800 m straight-line radius (not walking routes or times).',
           'The City Centre Plan boundary is read live from the City\'s published ArcGIS layer when available.',

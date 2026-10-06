@@ -1,5 +1,6 @@
 import { NON_AFFILIATION, PAGE_TITLE, PURPOSE_LINE } from './copy.js';
 import { getSkyTrainStations, pilotAreaLabel } from './data.js';
+import { safeHttpUrl } from './detail.js';
 import { isShowcaseProject } from './showcase.js';
 import { computeAtAGlance, formatAtAGlance } from './summary.js';
 import { projectPanelTitle } from './titles.js';
@@ -31,7 +32,12 @@ export function renderStaticSummary({ projects, skytrain, civic }) {
   const countItems = counts.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
   const placeItems = places
     .map((place) => {
-      return `<li><strong>${escapeHtml(place.name)}</strong> (${escapeHtml(place.category)}). ${escapeHtml(place.text)} <a href="${escapeHtml(place.source_url)}">${escapeHtml(place.source_label)}</a></li>`;
+      const label = place.source_label || place.name;
+      const href = safeHttpUrl(place.source_url);
+      const source = href
+        ? `<a href="${escapeHtml(href)}">${escapeHtml(label)}</a>`
+        : escapeHtml(String(place.source_url || label));
+      return `<li><strong>${escapeHtml(place.name)}</strong> (${escapeHtml(place.category)}). ${escapeHtml(place.text)} ${source}</li>`;
     })
     .join('');
   const projectItems = showcase

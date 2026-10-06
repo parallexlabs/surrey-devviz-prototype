@@ -139,7 +139,27 @@ export function pilotAreaLabel(area) {
   return labels[area] || area;
 }
 
-function ringContains(lon, lat, ring) {
+function onSegment(lon, lat, a, b) {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return false;
+  const cross = dx * (lat - a[1]) - dy * (lon - a[0]);
+  if (Math.abs(cross) > 1e-9) return false;
+  const dot = (lon - a[0]) * dx + (lat - a[1]) * dy;
+  if (dot < -1e-9) return false;
+  return dot - len2 <= 1e-9;
+}
+
+function pointOnRing(lon, lat, ring) {
+  if (!ring?.length) return false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    if (onSegment(lon, lat, ring[j], ring[i])) return true;
+  }
+  return false;
+}
+
+function ringInterior(lon, lat, ring) {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const xi = ring[i][0];
@@ -162,8 +182,10 @@ function polygonsOf(geometry) {
 
 export function geometryContains(geometry, lon, lat) {
   return polygonsOf(geometry).some((polygon) => {
-    if (!polygon?.length || !ringContains(lon, lat, polygon[0])) return false;
-    return !polygon.slice(1).some((hole) => ringContains(lon, lat, hole));
+    if (!polygon?.length) return false;
+    if (polygon.some((ring) => pointOnRing(lon, lat, ring))) return true;
+    if (!ringInterior(lon, lat, polygon[0])) return false;
+    return !polygon.slice(1).some((hole) => ringInterior(lon, lat, hole));
   });
 }
 

@@ -10,12 +10,28 @@ describe('parseStoreys', () => {
 
   it('parses word storey counts', () => {
     expect(parseStoreys('a six-storey apartment building')).toBe(6);
-    expect(parseStoreys('forty-three-storey tower')).toBeNull();
+    expect(parseStoreys('forty-three-storey tower')).toBe(43);
     expect(parseStoreys('a twenty-storey tower')).toBe(20);
+    expect(parseStoreys('twenty-five storey tower')).toBe(25);
+    expect(parseStoreys('twenty-one storey tower')).toBe(21);
+    expect(parseStoreys('twenty one storey tower')).toBe(21);
   });
 
   it('returns null when no storeys stated', () => {
     expect(parseStoreys('Rezoning from RF to CD for townhouse units')).toBeNull();
+  });
+
+  it('does not read a trailing digit from a decimal storey', () => {
+    expect(parseStoreys('2.5-storey building')).toBeNull();
+    expect(parseStoreys('6.5-storey building')).toBeNull();
+  });
+
+  it('skips parking storeys and keeps the building count', () => {
+    expect(parseStoreys('2 storeys of underground parking below a 6-storey building')).toBe(6);
+    expect(parseStoreys('2 storeys of underground parking')).toBeNull();
+    expect(parseStoreys('3-storey podium and 40-storey tower')).toBe(40);
+    expect(parseStoreys('three-storey podium and 40-storey tower')).toBe(40);
+    expect(parseStoreys('21-storey tower')).toBe(21);
   });
 });
 
@@ -32,7 +48,10 @@ describe('computeProjectHeight', () => {
   it('uses illustrative height by building type', () => {
     const result = computeProjectHeight('Development Permit for a mixed-use commercial project');
     expect(result.height_source).toBe('illustrative');
-    expect(result.height_label).toBe('Height not stated in the application. Illustrative massing only.');
+    expect(result.height_label).toBe(
+      'Illustrative height: no storey count could be read from the application',
+    );
+    expect(result.height_label).not.toMatch(/not stated|no height/i);
     expect(result.height_m).toBeGreaterThan(0);
   });
 });

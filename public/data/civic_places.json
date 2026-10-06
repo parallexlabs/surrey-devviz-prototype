@@ -58,8 +58,8 @@
     }
   ],
   "area_cards": {
-    "city-centre": {"title": "City Centre", "text": "The City describes City Centre as the region's emerging second downtown. Explore approved development alongside civic places, campuses and SkyTrain.", "source_url": "https://www.surrey.ca/about-surrey/our-communities/city-centre"},
-    "fleetwood": {"title": "Fleetwood Town Centre", "text": "Explore development in the context of the City's Fleetwood Town Centre Plan.", "source_url": "https://www.surrey.ca/renovating-building-development/land-planning-development/land-use-planning/fleetwood-land-use-plans/fleetwood-town-centre-plan"},
-    "campbell-heights": {"title": "Campbell Heights", "text": "Selected development records in Campbell Heights, including South Campbell Heights, within the City's Local Area Plan boundaries.", "source_url": "https://services5.arcgis.com/YRpe0VKTJytZSSIB/arcgis/rest/services/Campbell%20Heights%20Local%20Area%20Plan/FeatureServer/0"}
+    "city-centre": {"title": "City Centre", "text": "The City describes City Centre as the region's emerging second downtown. Explore approved development alongside civic places, campuses and SkyTrain.", "source_label": "City Centre on surrey.ca", "source_url": "https://www.surrey.ca/about-surrey/our-communities/city-centre"},
+    "fleetwood": {"title": "Fleetwood Town Centre", "text": "Explore development in the context of the City's Fleetwood Town Centre Plan.", "source_label": "Fleetwood Town Centre Plan on surrey.ca", "source_url": "https://www.surrey.ca/renovating-building-development/land-planning-development/land-use-planning/fleetwood-land-use-plans/fleetwood-town-centre-plan"},
+    "campbell-heights": {"title": "Campbell Heights", "text": "Selected development records in Campbell Heights, including South Campbell Heights, within the City's Local Area Plan boundaries.", "source_label": "Campbell Heights Local Area Plan (City open data)", "source_url": "https://services5.arcgis.com/YRpe0VKTJytZSSIB/arcgis/rest/services/Campbell%20Heights%20Local%20Area%20Plan/FeatureServer/0"}
   }
 }

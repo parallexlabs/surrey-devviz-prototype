@@ -150,6 +150,36 @@ describe('pilotAreaOutlines', () => {
   });
 });
 
+describe('geometryContains boundaries', () => {
+  const square = {
+    type: 'Polygon',
+    coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
+  };
+  const holed = {
+    type: 'Polygon',
+    coordinates: [
+      [[0, 0], [4, 0], [4, 4], [0, 4], [0, 0]],
+      [[1, 1], [3, 1], [3, 3], [1, 3], [1, 1]],
+    ],
+  };
+
+  it('includes every edge of a polygon, matching covers()', () => {
+    expect(geometryContains(square, 0, 0.5)).toBe(true);
+    expect(geometryContains(square, 0.5, 0)).toBe(true);
+    expect(geometryContains(square, 1, 0.5)).toBe(true);
+    expect(geometryContains(square, 0.5, 1)).toBe(true);
+    expect(geometryContains(square, 0, 0)).toBe(true);
+    expect(geometryContains(square, 0.5, 0.5)).toBe(true);
+    expect(geometryContains(square, 1.1, 0.5)).toBe(false);
+  });
+
+  it('includes a hole boundary and excludes the hole interior', () => {
+    expect(geometryContains(holed, 0.5, 0.5)).toBe(true);
+    expect(geometryContains(holed, 2, 2)).toBe(false);
+    expect(geometryContains(holed, 1, 2)).toBe(true);
+  });
+});
+
 describe('Campbell Heights plan polygon', () => {
   const areas = JSON.parse(readFileSync(join(process.cwd(), 'public/data/pilot_areas.json'), 'utf8'));
 

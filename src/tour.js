@@ -1,10 +1,22 @@
 import { isShowcaseProject } from './showcase.js';
 import { parseStoreys } from './heights.js';
 import { nearestStation, formatDistance } from './proximity.js';
-import { getSkyTrainStations } from './data.js';
+import { geometryContains, getSkyTrainLines, getSkyTrainStations } from './data.js';
 
 const NEAR_SKYTRAIN_M = 800;
 const MAJOR_PROJECT_NO = '21-0313-00';
+
+export function skytrainSegmentPhrase(skytrainFc, areaGeometry) {
+  const lines = getSkyTrainLines(skytrainFc || { features: [] });
+  if (!areaGeometry) return `${lines.length} SkyTrain segments in the loaded transit data`;
+  const inside = lines.filter((feature) => {
+    const coords = feature.geometry?.coordinates;
+    if (!coords?.length) return false;
+    const mid = coords[Math.floor((coords.length - 1) / 2)];
+    return Array.isArray(mid) && geometryContains(areaGeometry, mid[0], mid[1]);
+  });
+  return `${inside.length} SkyTrain segments in the area`;
+}
 
 function countShowcaseInArea(projects, area) {
   return projects.filter(
@@ -56,7 +68,7 @@ export function buildTourSteps(projectsFc, skytrainFc, civic, pilotAreas) {
       title: 'Development and destinations in City Centre',
       preset: 'city_centre',
       areaId: 'city-centre',
-      caption: `${near} showcase projects are within 800 m straight-line of a SkyTrain station.`,
+      caption: `${near} showcase projects are within 800 m straight-line of a SkyTrain station (${skytrainSegmentPhrase(skytrainFc, pilotAreas?.city_centre?.geometry)}).`,
       layers: { skytrain: true, civic: true, plan: true },
     },
     {

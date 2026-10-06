@@ -373,7 +373,7 @@ header.app-header .subtitle,
   border-bottom: 3px solid transparent;
 }
 
-.sidebar-tabs button[aria-selected='true'] {
+.sidebar-tabs button[aria-pressed='true'] {
   color: var(--primary);
   border-bottom-color: var(--primary);
 }

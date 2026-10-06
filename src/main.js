@@ -19,19 +19,20 @@ import {
 import {
   nearestStation,
   createProximityRingsGeoJSON,
-  featureCentroid,
+  featureReferencePoint,
 } from './proximity.js';
 import { isShowcaseProject, underReviewLabel } from './showcase.js';
 import { HEIGHT_LEGEND } from './heights.js';
 import { projectTitle, projectSubtitle } from './titles.js';
 import { computeAtAGlance, formatAtAGlance } from './summary.js';
 import { buildTourSteps } from './tour.js';
-import { projectPanelModel } from './detail.js';
+import { projectPanelModel, safeHttpUrl } from './detail.js';
 import { BUILD_ID } from './buildInfo.js';
 import {
   ACCESSIBILITY_STATEMENT,
   AREA_COUNT_NOTE,
-  MASSING_NOTE,
+  EXTRUSION_LIMIT,
+  EXTRUSION_NAME,
   NON_AFFILIATION,
   OPENING_LAYERS,
   PAGE_TITLE,
@@ -40,8 +41,9 @@ import {
   SHOWCASE_CLOSING,
   areaCountLine,
 } from './copy.js';
-import { buildLocationHash, parseLocationHash } from './hashView.js';
+import { buildLocationHash, parseLocationHash, resolveHashTarget, sameRecordId } from './hashView.js';
 import { methodologyModel } from './methodology.js';
+import { testHooksEnabled } from './testHooks.js';
 
 const CAMERA_PRESETS = {
   overview: { center: [-122.8, 49.1], zoom: 11.2, pitch: 0, bearing: 0 },
@@ -68,7 +70,11 @@ function applyPilotAreaPresets(pilotAreas) {
 
 function cameraMovesInstantly(options = {}) {
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  return reduce || options.instant || window.__cameraInstant === true;
+  return reduce || options.instant || (testHooksEnabled() && window.__cameraInstant === true);
+}
+
+function expose(name, value) {
+  if (testHooksEnabled()) window[name] = value;
 }
 
 function overviewPadding() {
@@ -191,6 +197,27 @@ let currentView = null;
 let detailReturn = null;
 let overlaysPromise = null;
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
+let buildingsFc = EMPTY_FC;
+let planFc = EMPTY_FC;
+let ftdaFc = EMPTY_FC;
+let skytrainFc = EMPTY_FC;
+let skytrainLinesFc = EMPTY_FC;
+let skytrainStationsFc = EMPTY_FC;
+let planLive = false;
+let overlaysReady = false;
+
+function publishOverlays() {
+  expose('__buildingsFc', buildingsFc);
+  expose('__planFc', planFc);
+  expose('__ftdaFc', ftdaFc);
+  expose('__skytrainFc', skytrainFc);
+  expose('__skytrainLinesFc', skytrainLinesFc);
+  expose('__skytrainStationsFc', skytrainStationsFc);
+  expose('__amenitiesFc', amenitiesFc);
+  expose('__pilotAreasMeta', pilotAreasMeta);
+  expose('__overlaysReady', overlaysReady);
+  expose('__planLive', planLive);
+}
 
 const DEFAULT_PAINT = {
   'fill-extrusion-color': [
@@ -225,6 +252,7 @@ const DEFAULT_PAINT = {
 function buildApp() {
   const app = document.getElementById('app');
   app.innerHTML = `
+    <div id="sr-announcer" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
     <div class="chrome">
       <header class="app-header" role="banner">
         <div class="brand">
@@ -239,11 +267,11 @@ function buildApp() {
       <button type="button" id="open-methodology" class="methodology-open">Data and methodology</button>
     </div>
     <aside class="sidebar" id="sidebar" aria-label="Project list and information">
-      <div class="sidebar-tabs" role="tablist">
-        <button role="tab" id="tab-projects" aria-selected="true" aria-controls="panel-projects">Projects</button>
-        <button role="tab" id="tab-about" aria-selected="false" aria-controls="panel-about">About</button>
+      <div class="sidebar-tabs">
+        <button type="button" id="tab-projects" aria-pressed="true" aria-controls="panel-projects">Projects</button>
+        <button type="button" id="tab-about" aria-pressed="false" aria-controls="panel-about">About</button>
       </div>
-      <div class="sidebar-panel" id="panel-projects" role="tabpanel" aria-labelledby="tab-projects">
+      <div class="sidebar-panel" id="panel-projects">
         <section class="at-a-glance" id="at-a-glance" aria-label="At a glance summary"></section>
         <section id="area-card" class="area-card" hidden></section>
         <label class="toggle-row">
@@ -274,11 +302,11 @@ function buildApp() {
         <h2 id="civic-heading" class="civic-heading">Civic investments and destinations</h2>
         <ul class="civic-list" id="civic-list" aria-labelledby="civic-heading"></ul>
       </div>
-      <div class="sidebar-panel" id="panel-about" role="tabpanel" aria-labelledby="tab-about" hidden>
+      <div class="sidebar-panel" id="panel-about" hidden>
         <div class="about-content" id="about-content"></div>
       </div>
     </aside>
-    <main class="map-area" id="main-content">
+    <main class="map-area" id="main-content" tabindex="-1">
       <div id="map" role="application" aria-label="Interactive 3D map of Surrey development projects"></div>
       <div class="map-controls" aria-label="Map controls">
         <h2>View</h2>
@@ -295,12 +323,12 @@ function buildApp() {
         <label><input type="checkbox" id="toggle-civic" checked> Civic investments and destinations</label>
         <label><input type="checkbox" id="toggle-amenities"> Amenities</label>
         <label><input type="checkbox" id="toggle-buildings"> Existing buildings</label>
-        <h2 class="legend-heading">Massing legend</h2>
-        <ul class="height-legend" aria-label="Massing height legend">
+        <h2 class="legend-heading">${escapeHtml(EXTRUSION_NAME)}</h2>
+        <ul class="height-legend" aria-label="${escapeAttr(EXTRUSION_NAME)}">
           <li><span class="swatch swatch-estimated" aria-hidden="true"></span> ${HEIGHT_LEGEND.estimated}</li>
           <li><span class="swatch swatch-illustrative" aria-hidden="true"></span> ${HEIGHT_LEGEND.illustrative}</li>
         </ul>
-        <p class="massing-note">${escapeHtml(MASSING_NOTE)}</p>
+        <p class="massing-note">${escapeHtml(EXTRUSION_LIMIT)}</p>
         <p class="rings-legend">${escapeHtml(RINGS_EXPLANATION)}</p>
       </div>
       <div class="tour-panel" id="tour-panel" hidden role="dialog" aria-modal="true" aria-labelledby="tour-title" tabindex="-1">
@@ -313,7 +341,7 @@ function buildApp() {
           <button type="button" id="tour-exit">End showcase</button>
         </div>
       </div>
-      <div id="methodology-drawer" class="methodology-drawer" hidden role="dialog" aria-modal="true" aria-labelledby="methodology-title">
+      <div id="methodology-drawer" class="methodology-drawer" hidden role="dialog" aria-modal="true" aria-labelledby="methodology-title" tabindex="-1">
         <div class="methodology-toolbar">
           <h2 id="methodology-title">Data and methodology</h2>
           <button type="button" id="close-methodology">Close</button>
@@ -330,7 +358,7 @@ function buildApp() {
     </main>
     <footer class="app-footer" role="contentinfo">
       <p id="data-retrieved" hidden></p>
-      <p>${escapeHtml(SURREY_LICENCE_TEXT)} <a href="${escapeAttr(SURREY_LICENCE_URL)}" target="_blank" rel="noopener">City of Surrey Open Data licence</a>.</p>
+      <p>${escapeHtml(SURREY_LICENCE_TEXT)} ${externalAnchor(SURREY_LICENCE_URL, 'City of Surrey Open Data licence')}.</p>
       <p class="quiet-line">${escapeHtml(NON_AFFILIATION)}</p>
     </footer>
   `;
@@ -347,9 +375,12 @@ function buildApp() {
   });
   document.getElementById('toggle-all-apps').addEventListener('change', (e) => {
     showAllApplications = e.target.checked;
-    if (!showAllApplications) document.getElementById('filter-status').value = '';
-    updateMapFilter();
+    const select = document.getElementById('filter-status');
+    const previous = showAllApplications ? select.value : '';
     populateStatusFilter();
+    if ([...select.options].some((item) => item.value === previous)) select.value = previous;
+    else select.value = '';
+    updateMapFilter();
     renderPhaseFilters();
     renderProjectList();
     renderAtAGlance();
@@ -365,7 +396,7 @@ function setupTabs() {
     tab.addEventListener('click', () => {
       tabs.forEach((t) => {
         const selected = t === tab;
-        t.setAttribute('aria-selected', String(selected));
+        t.setAttribute('aria-pressed', String(selected));
         document.getElementById(t.getAttribute('aria-controls')).hidden = !selected;
       });
     });
@@ -412,6 +443,7 @@ function setupTourControls() {
   document.getElementById('tour-next').addEventListener('click', () => stepTour(1));
   document.getElementById('tour-exit').addEventListener('click', () => endTour(true));
   document.addEventListener('keydown', (e) => {
+    trapDialogTab(e);
     if (e.key === 'Escape') {
       if (!document.getElementById('methodology-drawer').hidden) {
         closeMethodology();
@@ -448,15 +480,86 @@ function setupMethodology() {
   document.getElementById('close-methodology').addEventListener('click', closeMethodology);
 }
 
+const MODAL_INERT = [
+  '.skip-link',
+  '.chrome',
+  '#sidebar',
+  '#map',
+  '.map-controls',
+  '#tour-panel',
+  '#methodology-drawer',
+  '#detail-panel',
+  '.app-footer',
+];
+
+function setModalInert(active) {
+  for (const selector of MODAL_INERT) {
+    const el = document.querySelector(selector);
+    if (el) el.inert = el !== active;
+  }
+}
+
+function clearModalInert() {
+  for (const selector of MODAL_INERT) {
+    const el = document.querySelector(selector);
+    if (el) el.inert = false;
+  }
+}
+
+function openDialog(dialog, opener) {
+  dialog.returnFocus = opener instanceof HTMLElement ? opener : null;
+  setModalInert(dialog);
+  dialog.hidden = false;
+}
+
+function closeDialog(dialog, fallback) {
+  dialog.hidden = true;
+  clearModalInert();
+  const back = dialog.returnFocus;
+  dialog.returnFocus = null;
+  const target = back && document.contains(back) ? back : fallback;
+  target?.focus();
+}
+
+function trapDialogTab(event) {
+  if (event.key !== 'Tab') return;
+  const dialog = [...document.querySelectorAll('#tour-panel, #methodology-drawer')].find(
+    (el) => !el.hidden,
+  );
+  if (!dialog) return;
+  const items = [...dialog.querySelectorAll('button, a[href], input, select, textarea')].filter(
+    (el) => !el.disabled,
+  );
+  if (!items.length) {
+    event.preventDefault();
+    dialog.focus();
+    return;
+  }
+  const first = items[0];
+  const last = items[items.length - 1];
+  const active = document.activeElement;
+  if (!dialog.contains(active) || active === dialog) {
+    event.preventDefault();
+    (event.shiftKey ? last : first).focus();
+    return;
+  }
+  if (event.shiftKey && active === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
 function openMethodology() {
   const drawer = document.getElementById('methodology-drawer');
-  drawer.hidden = false;
+  openDialog(drawer, document.activeElement);
   document.getElementById('close-methodology').focus();
 }
 
 function closeMethodology() {
-  document.getElementById('methodology-drawer').hidden = true;
-  document.getElementById('open-methodology').focus();
+  closeDialog(document.getElementById('methodology-drawer'), document.getElementById('open-methodology'));
 }
 
 function setOverlayChecked(id, checked) {
@@ -484,31 +587,31 @@ function setLocationHash(state) {
 }
 
 function applyLocationHash() {
-  const parsed = parseLocationHash(location.hash);
-  if (!parsed.view && !parsed.project) return;
+  const target = resolveHashTarget(parseLocationHash(location.hash), projectsFc?.features || []);
+  if (target.kind === 'none') return;
   applyingHash = true;
   try {
-    if (parsed.project) {
-      const feature = projectsFc.features.find((f) => f.properties.PROJECT_NO === parsed.project);
-      if (!feature) return;
+    if (target.kind === 'project') {
+      const feature = target.feature;
       if (!showAllApplications && !isShowcaseProject(feature.properties)) {
         showAllApplications = true;
         document.getElementById('toggle-all-apps').checked = true;
-        updateMapFilter();
+        const select = document.getElementById('filter-status');
+        const previous = select.value;
         populateStatusFilter();
+        if ([...select.options].some((item) => item.value === previous)) select.value = previous;
+        updateMapFilter();
         renderPhaseFilters();
         renderAtAGlance();
       }
-      currentView = parsed.view;
+      currentView = target.view;
       selectProject(projectId(feature.properties), { skipHash: true });
       return;
     }
-    if (parsed.view) {
-      currentView = parsed.view;
-      selectProject(null, { skipHash: true });
-      renderAreaCard(AREA_BY_PRESET[parsed.view] || null);
-      flyToPreset(parsed.view);
-    }
+    currentView = target.view;
+    selectProject(null, { skipHash: true });
+    renderAreaCard(AREA_BY_PRESET[target.view] || null);
+    flyToPreset(target.view);
   } finally {
     applyingHash = false;
   }
@@ -583,7 +686,7 @@ async function initMap() {
     pitch: initial.pitch,
     bearing: initial.bearing || 0,
     antialias: true,
-    preserveDrawingBuffer: window.__cameraInstant === true,
+    preserveDrawingBuffer: testHooksEnabled() && window.__cameraInstant === true,
     attributionControl: false,
   });
 
@@ -594,7 +697,7 @@ async function initMap() {
 
   map.addControl(new maplibregl.NavigationControl(), 'top-left');
   const mapAttribution =
-    '<a href="https://maplibre.org/" target="_blank" rel="noopener">MapLibre</a> | OpenFreeMap | OpenMapTiles | <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">(c) OpenStreetMap contributors</a>';
+    '<a href="https://maplibre.org/" target="_blank" rel="noopener noreferrer">MapLibre<span class="visually-hidden"> (opens in a new tab)</span></a> | OpenFreeMap | OpenMapTiles | <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">(c) OpenStreetMap contributors<span class="visually-hidden"> (opens in a new tab)</span></a>';
   map.addControl(
     new maplibregl.AttributionControl({
       compact: false,
@@ -609,7 +712,7 @@ async function initMap() {
   };
   map.on('styledata', lockMapAttribution);
   map.on('idle', lockMapAttribution);
-  window.__map = map;
+  expose('__map', map);
 
   let lastMapSize = '';
   map.on('resize', () => {
@@ -665,12 +768,12 @@ async function initMap() {
 
 function addSourcesAndLayers() {
   map.addSource('projects', { type: 'geojson', data: projectsFc });
-  map.addSource('buildings', { type: 'geojson', data: window.__buildingsFc });
-  map.addSource('city-centre-plan', { type: 'geojson', data: window.__planFc });
-  map.addSource('ftda', { type: 'geojson', data: window.__ftdaFc });
-  map.addSource('skytrain-lines', { type: 'geojson', data: window.__skytrainLinesFc });
-  map.addSource('skytrain-stations', { type: 'geojson', data: window.__skytrainStationsFc });
-  map.addSource('amenities', { type: 'geojson', data: window.__amenitiesFc });
+  map.addSource('buildings', { type: 'geojson', data: buildingsFc });
+  map.addSource('city-centre-plan', { type: 'geojson', data: planFc });
+  map.addSource('ftda', { type: 'geojson', data: ftdaFc });
+  map.addSource('skytrain-lines', { type: 'geojson', data: skytrainLinesFc });
+  map.addSource('skytrain-stations', { type: 'geojson', data: skytrainStationsFc });
+  map.addSource('amenities', { type: 'geojson', data: amenitiesFc });
   map.addSource('pilot-areas', { type: 'geojson', data: pilotAreaOutlines(pilotAreasMeta) });
   map.addSource('pilot-area-labels', { type: 'geojson', data: pilotAreaLabelPoints(pilotAreasMeta) });
   map.addSource('project-markers', { type: 'geojson', data: projectMarkerPoints(projectsFc) });
@@ -823,6 +926,7 @@ function addSourcesAndLayers() {
     type: 'circle',
     source: 'amenities',
     minzoom: AMENITY_MIN_ZOOM,
+    filter: ['==', ['geometry-type'], 'Point'],
     layout: { visibility: 'none' },
     paint: {
       'circle-radius': 6,
@@ -982,10 +1086,11 @@ function renderAreaCard(areaId) {
   }
   const count = selectedRecordCount(PILOT_BY_AREA[areaId]);
   el.hidden = false;
+  const sourceLabel = card.source_label || card.title;
   el.innerHTML = `
     <h2>${escapeHtml(card.title)}</h2>
     <p>${escapeHtml(card.text)}</p>
-    <p><a href="${escapeAttr(card.source_url)}" target="_blank" rel="noopener">${escapeHtml(card.source_url)}</a></p>
+    <p>${linkOrPlain(card.source_url, sourceLabel)}</p>
     <p class="area-count">${escapeHtml(areaCountLine(count))}</p>
     <p class="area-note">${escapeHtml(AREA_COUNT_NOTE)}</p>
   `;
@@ -994,7 +1099,7 @@ function renderAreaCard(areaId) {
 function projectMarkerPoints(fc) {
   const features = [];
   for (const feature of fc?.features || []) {
-    const coordinates = featureCentroid(feature);
+    const coordinates = featureReferencePoint(feature);
     if (!coordinates) continue;
     features.push({
       type: 'Feature',
@@ -1018,37 +1123,56 @@ function populateStatusFilter() {
   }
 }
 
+let phaseOptionsKey = '';
+
+function syncPhasePressed() {
+  const current = document.getElementById('filter-status')?.value || '';
+  for (const btn of document.querySelectorAll('#phase-filter-group button')) {
+    btn.setAttribute('aria-pressed', String((btn.dataset.phase || '') === current));
+  }
+}
+
 function renderPhaseFilters() {
   const wrap = document.getElementById('phase-filters');
   if (!wrap || !projectsFc) return;
   wrap.hidden = !showAllApplications;
   const group = document.getElementById('phase-filter-group');
-  group.innerHTML = '';
-  if (!showAllApplications) return;
-  const current = document.getElementById('filter-status').value;
+  if (!showAllApplications) {
+    group.replaceChildren();
+    phaseOptionsKey = '';
+    return;
+  }
   const statuses = [...new Set(projectsFc.features.map((f) => f.properties.STATUS).filter(Boolean))].sort();
   const options = [{ value: '', label: 'All statuses' }, ...statuses.map((status) => ({ value: status, label: status }))];
-  for (const option of options) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'phase-filter';
-    btn.textContent = option.label;
-    btn.setAttribute('aria-pressed', String(current === option.value));
-    btn.addEventListener('click', () => {
-      const select = document.getElementById('filter-status');
-      if (![...select.options].some((item) => item.value === option.value)) {
-        const opt = document.createElement('option');
-        opt.value = option.value;
-        opt.textContent = option.label;
-        select.appendChild(opt);
-      }
-      select.value = option.value;
-      updateMapFilter();
-      renderProjectList();
-      renderPhaseFilters();
-    });
-    group.appendChild(btn);
+  const key = options.map((option) => option.value).join('\n');
+  if (key !== phaseOptionsKey) {
+    phaseOptionsKey = key;
+    const focusedValue = document.activeElement?.dataset?.phase;
+    group.replaceChildren();
+    for (const option of options) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'phase-filter';
+      btn.dataset.phase = option.value;
+      btn.textContent = option.label;
+      btn.addEventListener('click', () => {
+        const select = document.getElementById('filter-status');
+        if (![...select.options].some((item) => item.value === option.value)) {
+          const opt = document.createElement('option');
+          opt.value = option.value;
+          opt.textContent = option.label;
+          select.appendChild(opt);
+        }
+        select.value = option.value;
+        updateMapFilter();
+        renderProjectList();
+        syncPhasePressed();
+      });
+      group.appendChild(btn);
+    }
+    if (focusedValue != null) group.querySelector(`[data-phase="${CSS.escape(focusedValue)}"]`)?.focus();
   }
+  syncPhasePressed();
 }
 
 function getVisibleProjects() {
@@ -1080,7 +1204,7 @@ function renderProjectList() {
     const li = document.createElement('li');
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.setAttribute('aria-current', String(projectId(p) === selectedId));
+    btn.setAttribute('aria-current', String(sameRecordId(projectId(p), selectedId)));
     btn.dataset.id = projectId(p);
     const review = underReviewLabel(p.STATUS);
     btn.innerHTML = `
@@ -1105,7 +1229,7 @@ function renderCivicList() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.dataset.civicId = place.id;
-    btn.setAttribute('aria-current', String(place.id === selectedCivicId));
+    btn.setAttribute('aria-current', String(sameRecordId(place.id, selectedCivicId)));
     btn.innerHTML = `
       <strong>${escapeHtml(place.name)}</strong><br>
       <span class="area-tag">${escapeHtml(place.category)}</span>
@@ -1180,7 +1304,7 @@ function selectProject(id, options = {}) {
 
   const p = feature.properties;
   const nearest = nearestStation(feature, stations);
-  const center = featureCentroid(feature);
+  const center = featureReferencePoint(feature);
   if (!options.skipHash) setLocationHash({ project: p.PROJECT_NO });
 
   panel.hidden = false;
@@ -1206,15 +1330,21 @@ function selectProject(id, options = {}) {
   renderAreaCard(AREA_BY_PRESET[p.pilot_area] || areaIdForPilot(p.pilot_area));
   document.getElementById('detail-title').textContent = plain(model.title);
   const applicationLink = model.applicationUrl
-    ? `<p><a href="${escapeAttr(model.applicationUrl)}" target="_blank" rel="noopener">${escapeHtml(model.applicationLinkLabel)}</a></p>`
-    : '';
+    ? `<p>${externalAnchor(model.applicationUrl, model.applicationLinkLabel)}</p>`
+    : model.applicationPlain
+      ? `<p>${escapeHtml(model.applicationPlain)}</p>`
+      : '';
   const documentsLink = model.documentsUrl
-    ? `<dt>Documents</dt><dd><a href="${escapeAttr(model.documentsUrl)}" target="_blank" rel="noopener">View documents</a></dd>`
-    : '';
+    ? `<dt>Documents</dt><dd>${externalAnchor(model.documentsUrl, 'View documents')}</dd>`
+    : model.documentsPlain
+      ? `<dt>Documents</dt><dd>${escapeHtml(model.documentsPlain)}</dd>`
+      : '';
   document.getElementById('detail-content').innerHTML = `
     <p class="detail-description">${escapeHtml(model.description)}</p>
     <p class="status-line">${escapeHtml(model.statusLine)}</p>
+    <p class="context-line">${escapeHtml(model.contextLine)}</p>
     <p class="height-fact">${escapeHtml(model.heightLine)}</p>
+    <p class="extrusion-name">${escapeHtml(EXTRUSION_NAME)}</p>
     <p class="skytrain-line">${escapeHtml(model.skytrainLine)}</p>
     ${applicationLink}
     <dl>
@@ -1223,7 +1353,6 @@ function selectProject(id, options = {}) {
       ${documentsLink}
       <dt>Status source</dt><dd>${escapeHtml(model.statusSource)}</dd>
     </dl>
-    <p class="context-line">${escapeHtml(model.contextLine)}</p>
   `;
   if (!options.fromTour) document.getElementById('close-detail').focus();
 }
@@ -1250,7 +1379,7 @@ function selectCivic(id, options = {}) {
   document.getElementById('detail-content').innerHTML = `
     <p class="civic-category">${escapeHtml(place.category)}</p>
     <p>${escapeHtml(place.text)}</p>
-    <p><a href="${escapeAttr(place.source_url)}" target="_blank" rel="noopener">${escapeHtml(place.source_label)}</a></p>
+    <p>${linkOrPlain(place.source_url, place.source_label || place.name)}</p>
   `;
   const civicCamera = {
     center: [place.lon, place.lat],
@@ -1297,46 +1426,57 @@ function renderMethodology() {
 
 function renderAbout() {
   const el = document.getElementById('about-content');
+  const readmeHref = `${import.meta.env.BASE_URL || '/'}data/README.md`;
   const licenceHtml = sourcesMeta
     .map((s) => {
-      const licence = s.licence?.includes('City of Surrey')
-        ? `${SURREY_LICENCE_TEXT} <a href="${escapeAttr(SURREY_LICENCE_URL)}" target="_blank" rel="noopener">Licence details</a>`
-        : escapeHtml(s.licence);
-      return `<div class="licence-item"><strong>${escapeHtml(s.file)}</strong> (${s.feature_count} features)<br>${licence}</div>`;
+      const count = escapeHtml(s.feature_count ?? 'unknown');
+      let licence;
+      if (s.licence?.includes('City of Surrey')) {
+        licence = `${escapeHtml(SURREY_LICENCE_TEXT)} ${externalAnchor(SURREY_LICENCE_URL, 'Licence details')}`;
+      } else if (String(s.licence || '').includes('OpenStreetMap')) {
+        const odbl = safeHttpUrl(s.licence_url) || 'https://opendatacommons.org/licenses/odbl/1-0/';
+        licence = `${externalAnchor('https://www.openstreetmap.org/copyright', '(c) OpenStreetMap contributors')} (${externalAnchor(odbl, 'ODbL')})`;
+      } else {
+        licence = escapeHtml(s.licence ?? '');
+      }
+      return `<div class="licence-item"><strong>${escapeHtml(s.file)}</strong> (${count} features)<br>${licence}</div>`;
     })
     .join('');
 
   el.innerHTML = `
-    <p>Public-data prototype by <strong>ParalleX Labs Inc.</strong> for City of Surrey RFP 1220-030-2026-063.</p>
-    <p>${escapeHtml(SURREY_LICENCE_TEXT)} <a href="${escapeAttr(SURREY_LICENCE_URL)}" target="_blank" rel="noopener">City of Surrey Open Data licence</a>.</p>
+    <p>Public-data prototype by <strong>ParalleX Labs Inc.</strong> prepared in response to City of Surrey RFP 1220-030-2026-063.</p>
+    <p>${escapeHtml(SURREY_LICENCE_TEXT)} ${externalAnchor(SURREY_LICENCE_URL, 'City of Surrey Open Data licence')}.</p>
     <p>This prototype is not affiliated with or endorsed by the City of Surrey.</p>
-    <p>This page does not use tracking or cookies. It does not load third-party scripts beyond the map tiles.</p>
+    <p>This page does not use tracking or cookies. Third-party requests are limited to OpenFreeMap (style, tiles, fonts).</p>
+    <p><a href="${escapeAttr(readmeHref)}">OpenStreetMap data files and licence</a></p>
     <p>${escapeHtml(ACCESSIBILITY_STATEMENT)}</p>
-    <p>Data: City of Surrey Open Data and OpenStreetMap contributors. Estimated heights use stated storeys x 3.2 m. Other massing is illustrative.</p>
-    <h3>Data sources (${projectsFc.features.length} applications)</h3>
+    <p>Data: City of Surrey Open Data and ${externalAnchor('https://www.openstreetmap.org/copyright', '(c) OpenStreetMap contributors')}. Estimated heights use stated storeys x 3.2 m. Illustrative heights are used when no storey count could be read. ${escapeHtml(EXTRUSION_NAME)}.</p>
+    <h3>Data sources (${escapeHtml(projectsFc.features.length)} applications)</h3>
     ${licenceHtml}
   `;
 }
 
 async function startTour() {
   beginOverlayLoad();
-  tourSteps = buildTourSteps(projectsFc, window.__skytrainFc, civicData, pilotAreasMeta);
+  tourSteps = buildTourSteps(projectsFc, skytrainFc, civicData, pilotAreasMeta);
   tourIndex = 0;
+  const panel = document.getElementById('tour-panel');
+  openDialog(panel, document.activeElement);
   showTourStep();
-  document.getElementById('tour-panel').focus();
+  panel.focus();
 }
 
 function endTour(restoreFocus = false) {
   tourIndex = -1;
   const panel = document.getElementById('tour-panel');
-  panel.hidden = true;
   const closing = document.getElementById('tour-closing');
   if (closing) {
     closing.hidden = true;
     closing.textContent = '';
   }
   announce('Showcase ended');
-  if (restoreFocus) document.getElementById('start-showcase').focus();
+  if (restoreFocus) closeDialog(panel, document.getElementById('start-showcase'));
+  else closeDialog(panel, null);
 }
 
 function stepTour(delta) {
@@ -1405,7 +1545,19 @@ function escapeHtml(s) {
 }
 
 function escapeAttr(s) {
-  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+function externalAnchor(href, label) {
+  const safe = safeHttpUrl(href);
+  if (!safe) return '';
+  return `<a href="${escapeAttr(safe)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}<span class="visually-hidden"> (opens in a new tab)</span></a>`;
+}
+
+function linkOrPlain(href, label) {
+  if (safeHttpUrl(href)) return externalAnchor(href, label);
+  const text = String(href ?? '').trim();
+  return text ? escapeHtml(text) : '';
 }
 
 function beginOverlayLoad() {
@@ -1427,12 +1579,12 @@ async function loadDeferredOverlays() {
     map.getSource('amenities').setData(amenities);
   }
   amenitiesFc = amenities;
-  window.__buildingsFc = buildings;
-  window.__planFc = plan;
-  window.__ftdaFc = ftda;
-  window.__amenitiesFc = amenities;
-  window.__overlaysReady = true;
-  window.__planLive = false;
+  buildingsFc = buildings;
+  planFc = plan;
+  ftdaFc = ftda;
+  overlaysReady = true;
+  planLive = false;
+  publishOverlays();
   refreshCityCentrePlan(plan);
 }
 
@@ -1445,10 +1597,12 @@ async function refreshCityCentrePlan(plan) {
   const closeEnough = bundledCount > 0 && Math.abs(liveCount - bundledCount) / bundledCount <= 0.25;
   if (live && closeEnough && map?.getSource('city-centre-plan')) {
     map.getSource('city-centre-plan').setData(live);
-    window.__planLive = true;
+    planLive = true;
+    publishOverlays();
   }
   } catch {
-    window.__planLive = false;
+    planLive = false;
+    publishOverlays();
   }
 }
 
@@ -1470,18 +1624,18 @@ async function main() {
   stations = getSkyTrainStations(skytrain);
   sourcesMeta = sources;
 
-  window.__buildingsFc = EMPTY_FC;
-  window.__planFc = EMPTY_FC;
-  window.__ftdaFc = EMPTY_FC;
-  window.__skytrainFc = skytrain;
-  window.__skytrainLinesFc = {
+  buildingsFc = EMPTY_FC;
+  planFc = EMPTY_FC;
+  ftdaFc = EMPTY_FC;
+  skytrainFc = skytrain;
+  skytrainLinesFc = {
     type: 'FeatureCollection',
     features: skytrain.features.filter((f) => f.geometry?.type === 'LineString'),
   };
-  window.__skytrainStationsFc = { type: 'FeatureCollection', features: stations };
-  window.__amenitiesFc = EMPTY_FC;
-  window.__pilotAreasMeta = pilotAreas;
-  window.__overlaysReady = false;
+  skytrainStationsFc = { type: 'FeatureCollection', features: stations };
+  amenitiesFc = EMPTY_FC;
+  overlaysReady = false;
+  publishOverlays();
   applyPilotAreaPresets(pilotAreas);
 
   populateStatusFilter();
@@ -1498,6 +1652,9 @@ async function main() {
 
 main().catch((err) => {
   console.error(err);
-  document.getElementById('app').innerHTML =
-    `<p role="alert">Failed to load data: ${err.message}. Run <code>npm run fetch-data</code> first.</p>`;
+  const app = document.getElementById('app');
+  const alert = document.createElement('p');
+  alert.setAttribute('role', 'alert');
+  alert.textContent = 'Unable to load the prototype. Please reload and try again.';
+  app.replaceChildren(alert);
 });

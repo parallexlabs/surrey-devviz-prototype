@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { isHttpUrl, projectPanelModel } from '../../src/detail.js';
+import { isHttpUrl, projectPanelModel, safeHttpUrl } from '../../src/detail.js';
 import { methodologyModel } from '../../src/methodology.js';
 import { renderStaticSummary } from '../../src/staticSummary.js';
 import { getSkyTrainStations } from '../../src/data.js';
@@ -13,6 +13,12 @@ const read = (name) => JSON.parse(readFileSync(join(root, 'public/data', name), 
 describe('city application links', () => {
   it('accepts only http and https weblinks', () => {
     expect(isHttpUrl('https://citizenportal.surrey.ca/app?year=21 seq=0313')).toBe(true);
+    expect(safeHttpUrl('https://citizenportal.surrey.ca/app?year=21 seq=0313')).toBe(
+      'https://citizenportal.surrey.ca/app?year=21%20seq=0313',
+    );
+    expect(safeHttpUrl('HTTPS://Example.com/Path')).toBe('https://example.com/Path');
+    expect(safeHttpUrl('http://user:pass@example.com/')).toBeNull();
+    expect(safeHttpUrl('java\nscript:alert(1)')).toBeNull();
     expect(isHttpUrl('http://example.com/record')).toBe(true);
     expect(isHttpUrl('javascript:alert(1)')).toBe(false);
     expect(isHttpUrl('data:text/html,hi')).toBe(false);
@@ -42,7 +48,7 @@ describe('city application links', () => {
     expect(model.heightLine).toMatch(/^Estimated height about 214\.4 m: 67 storeys/);
     expect(model.heightLine).toContain('Not a surveyed or approved height.');
     expect(model.skytrainLine).toBe(
-      'Nearest SkyTrain station: Surrey Central, about 187 m straight-line (not a walking route)',
+      'Nearest SkyTrain station: Surrey Central, about 190 m straight-line (not a walking route)',
     );
     expect(model.applicationUrl).toBe('https://citizenportal.surrey.ca/record');
     expect(model.applicationLinkLabel).toBe("View the City's application record");
@@ -56,7 +62,10 @@ describe('city application links', () => {
       null,
     );
     expect(blocked.applicationUrl).toBeNull();
-    expect(blocked.heightLine).toBe('Height not stated in the application. Illustrative massing only.');
+    expect(blocked.heightLine).toBe(
+      'Illustrative height: no storey count could be read from the application',
+    );
+    expect(blocked.applicationPlain).toBe('javascript:alert(1)');
   });
 });
 

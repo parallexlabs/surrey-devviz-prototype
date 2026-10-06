@@ -10,6 +10,13 @@ export function haversineDistanceMeters(lon1, lat1, lon2, lat2) {
   return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(a));
 }
 
+function ringIsClosed(ring) {
+  if (!ring || ring.length < 2) return false;
+  const first = ring[0];
+  const last = ring[ring.length - 1];
+  return first[0] === last[0] && first[1] === last[1];
+}
+
 export function featureCentroid(feature) {
   const geom = feature.geometry;
   if (!geom) return null;
@@ -23,7 +30,7 @@ export function featureCentroid(feature) {
   if (!ring || !ring.length) return null;
   let sx = 0;
   let sy = 0;
-  const n = ring.length - (ring[0][0] === ring[ring.length - 1][0] ? 1 : 0);
+  const n = ring.length - (ringIsClosed(ring) ? 1 : 0);
   for (let i = 0; i < n; i++) {
     sx += ring[i][0];
     sy += ring[i][1];
@@ -31,8 +38,18 @@ export function featureCentroid(feature) {
   return [sx / n, sy / n];
 }
 
+export function featureReferencePoint(feature) {
+  const props = feature?.properties || {};
+  const lon = Number(props.assign_lon);
+  const lat = Number(props.assign_lat);
+  if (Number.isFinite(lon) && Number.isFinite(lat) && Math.abs(lon) <= 180 && Math.abs(lat) <= 90) {
+    return [lon, lat];
+  }
+  return featureCentroid(feature);
+}
+
 export function nearestStation(projectFeature, stations) {
-  const center = featureCentroid(projectFeature);
+  const center = featureReferencePoint(projectFeature);
   if (!center) return null;
   let best = null;
   let bestDist = Infinity;
@@ -49,7 +66,7 @@ export function nearestStation(projectFeature, stations) {
 }
 
 export function formatDistance(meters) {
-  if (meters < 1000) return `${Math.round(meters)} m`;
+  if (meters < 1000) return `${Math.round(meters / 10) * 10} m`;
   return `${(meters / 1000).toFixed(1)} km`;
 }
 

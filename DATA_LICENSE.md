@@ -31,7 +31,9 @@ The following files were retrieved from the [Overpass API](https://overpass-api.
 | `skytrain.geojson` | SkyTrain lines and stations in Surrey |
 | `amenities.geojson` | Civic facilities, libraries, recreation, and parks in Surrey |
 
-Attribution: © OpenStreetMap contributors.
+Attribution: © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright).
+
+The same file names, attribution, and licence link ship beside the data in [public/data/README.md](public/data/README.md).
 
 ## Map basemap
 

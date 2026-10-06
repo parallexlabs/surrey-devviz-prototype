@@ -37,12 +37,14 @@ function countBodyBackgroundPixels(pngPath, xMin = 354, xMax = 729, yMin = 52, y
 test.describe('Surrey DevViz prototype', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
+      window.__surreyTest = true;
       window.__cameraInstant = true;
     });
   });
 
   test('page loads with no console errors', async ({ page }) => {
     await page.addInitScript(() => {
+      window.__surreyTest = true;
       window.__cameraInstant = false;
     });
     const errors = [];
@@ -286,6 +288,14 @@ test.describe('Surrey DevViz prototype', () => {
     await expect(page.locator('#detail-content')).toContainText(
       'Source: City of Surrey Development Applications',
     );
+    await expect(page.locator('.status-line + .context-line')).toHaveText(
+      'Development context only. Property availability and investment terms are not shown.',
+    );
+    await expect(page.locator('#detail-content')).toContainText('Schematic application-area extrusion');
+    await expect(page.getByRole('link', { name: "View the City's application record" })).toHaveAttribute(
+      'rel',
+      'noopener noreferrer',
+    );
     await assertProjectPanel(page, 'project hash');
     await expect(page).toHaveURL(/\/demos\/surrey\/.*#project=21-0313-00/);
   });
@@ -368,18 +378,23 @@ test.describe('Surrey DevViz prototype', () => {
     const attrib = page.locator('.maplibregl-ctrl-attrib');
     await expect(attrib).toHaveCount(1);
     await expect(attrib).toContainText('OpenStreetMap', { timeout: 15000 });
-    const text = await page.locator('.maplibregl-ctrl-attrib').innerText();
+    const visibleCredits = async () =>
+      page.locator('.maplibregl-ctrl-attrib').evaluate((el) => {
+        const clone = el.cloneNode(true);
+        clone.querySelectorAll('.visually-hidden').forEach((node) => node.remove());
+        return clone.textContent.replace(/\s+/g, ' ');
+      });
+    const text = await visibleCredits();
     expect(text).toContain('MapLibre');
     expect(text).toContain('OpenFreeMap');
     expect(text).toContain('OpenMapTiles');
-    expect(text.replace(/\s+/g, ' ')).toContain(
+    expect(text).toContain(
       'MapLibre | OpenFreeMap | OpenMapTiles | (c) OpenStreetMap contributors',
     );
     await expect(page.getByRole('link', { name: '(c) OpenStreetMap contributors' })).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(400);
-    const phone = await page.locator('.maplibregl-ctrl-attrib').innerText();
-    expect(phone.replace(/\s+/g, ' ')).toContain(
+    expect(await visibleCredits()).toContain(
       'MapLibre | OpenFreeMap | OpenMapTiles | (c) OpenStreetMap contributors',
     );
   });
@@ -467,7 +482,13 @@ test.describe('Surrey DevViz prototype', () => {
     await page.goto('./');
     await page.locator('#tab-about').click();
     await expect(page.locator('#about-content')).toContainText('does not use tracking or cookies');
-    await expect(page.locator('#about-content')).toContainText('map tiles');
+    await expect(page.locator('#about-content')).toContainText(
+      'Third-party requests are limited to OpenFreeMap (style, tiles, fonts).',
+    );
+    await expect(page.locator('#about-content')).toContainText(
+      'prepared in response to City of Surrey RFP 1220-030-2026-063',
+    );
+    await expect(page.locator('#about-content a[href$="data/README.md"]')).toBeVisible();
     await expect(page.locator('#about-content')).toContainText(
       'Tested with axe-core: 0 automatically detected violations in the tested states, plus manual keyboard testing.',
     );
@@ -482,7 +503,8 @@ test.describe('Surrey DevViz prototype', () => {
     await expect(page.locator('#detail-title')).toHaveText('City Centre Arena (planned)');
     await expect(page.locator('#detail-content')).toContainText('Civic investment');
     await expect(page.locator('#detail-content')).toContainText('demolition had begun');
-    await expect(page.locator('#detail-content a')).toHaveText("Read the City's update");
+    await expect(page.locator('#detail-content a')).toContainText("Read the City's update");
+    await expect(page.locator('#detail-content a')).toHaveAttribute('rel', 'noopener noreferrer');
     await expect(page.locator('.project-list li')).toHaveCount(49);
   });
 
@@ -513,6 +535,7 @@ test.describe('Surrey DevViz prototype', () => {
         await expect(page.locator('#area-card')).toContainText('Fleetwood Town Centre');
         await expect(page.locator('#area-card')).toContainText('2 selected records in this prototype');
         await expect(page.locator('#area-card a')).toHaveAttribute('href', /fleetwood-town-centre-plan/);
+        await expect(page.locator('#area-card a')).toContainText('Fleetwood Town Centre Plan on surrey.ca');
       }
       if (index === titles.length - 1) {
         await expect(page.locator('#tour-closing')).toHaveText(
@@ -527,6 +550,40 @@ test.describe('Surrey DevViz prototype', () => {
     await expect(page.locator('#tour-title')).toHaveText('Fleetwood Town Centre');
     await page.locator('#tour-exit').click();
     await expect(page.locator('#start-showcase')).toBeFocused();
+  });
+
+  test('a missing project still applies a valid view', async ({ page }) => {
+    await page.goto('./#view=fleetwood&project=missing');
+    await page.waitForFunction(() => window.__map?.getLayer('projects-extrusion'));
+    await assertPilotMassingView(page, pilotAreas.fleetwood.bbox, 'missing project hash');
+    await expect(page.locator('#detail-panel')).toBeHidden();
+  });
+
+  test('methodology is modal and returns focus', async ({ page }) => {
+    await page.goto('./');
+    await page.waitForSelector('#open-methodology');
+    await page.locator('#open-methodology').click();
+    await expect(page.locator('#methodology-drawer')).toBeVisible();
+    await expect(page.locator('#sidebar')).toHaveJSProperty('inert', true);
+    await expect(page.locator('#map')).toHaveJSProperty('inert', true);
+    await expect(page.locator('.map-controls')).toContainText(
+      'Application areas are extruded uniformly for illustration. They are not proposed building footprints or approved architectural massing.',
+    );
+    await expect(page.locator('#methodology-content')).toContainText(
+      'Application areas are extruded uniformly for illustration. They are not proposed building footprints or approved architectural massing.',
+    );
+    await page.locator('#close-methodology').click();
+    await expect(page.locator('#open-methodology')).toBeFocused();
+    await expect(page.locator('#sidebar')).toHaveJSProperty('inert', false);
+  });
+
+  test('phase filter buttons keep focus', async ({ page }) => {
+    await page.goto('./');
+    await page.locator('#toggle-all-apps').check();
+    const button = page.locator('.phase-filter', { hasText: 'Conditional Approval' });
+    await button.click();
+    await expect(button).toBeFocused();
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
   });
 
   test('the built page includes a no-javascript summary', async ({ request }) => {

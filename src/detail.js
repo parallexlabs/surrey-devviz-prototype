@@ -8,9 +8,22 @@ import {
   skytrainStationLine,
 } from './copy.js';
 
+export function safeHttpUrl(value) {
+  if (typeof value !== 'string') return null;
+  const raw = value.trim();
+  if (!raw || /[\u0000-\u001F\u007F]/.test(raw)) return null;
+  try {
+    const url = new URL(raw.replace(/ /g, '%20'));
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    if (url.username || url.password) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
 export function isHttpUrl(value) {
-  const url = String(value ?? '').trim();
-  return /^https?:\/\//i.test(url);
+  return safeHttpUrl(value) != null;
 }
 
 export function plainDescription(description) {
@@ -23,10 +36,8 @@ export function plainDescription(description) {
 export function projectPanelModel(properties, nearest) {
   const status = properties?.STATUS || 'Not provided';
   const stationName = nearest?.station?.properties?.name || 'SkyTrain station';
-  const applicationUrl = isHttpUrl(properties?.WEBLINK) ? String(properties.WEBLINK).trim() : null;
-  const documentsUrl = isHttpUrl(properties?.APPLICATION_DOCUMENTS_WEBLINK)
-    ? String(properties.APPLICATION_DOCUMENTS_WEBLINK).trim()
-    : null;
+  const applicationUrl = safeHttpUrl(properties?.WEBLINK);
+  const documentsUrl = safeHttpUrl(properties?.APPLICATION_DOCUMENTS_WEBLINK);
   return {
     title: projectPanelTitle(properties?.DESCRIPTION),
     description: plainDescription(properties?.DESCRIPTION) || 'Not provided',
@@ -37,9 +48,11 @@ export function projectPanelModel(properties, nearest) {
       : 'Nearest SkyTrain station: none in the loaded station data.',
     applicationUrl,
     applicationLinkLabel: APPLICATION_LINK_LABEL,
+    applicationPlain: applicationUrl ? '' : String(properties?.WEBLINK ?? '').trim(),
     projectNo: projectSubtitle(properties),
     pilotArea: pilotAreaLabel(properties?.pilot_area),
     documentsUrl,
+    documentsPlain: documentsUrl ? '' : String(properties?.APPLICATION_DOCUMENTS_WEBLINK ?? '').trim(),
     statusSource: STATUS_SOURCE,
     contextLine: CONTEXT_LINE,
   };

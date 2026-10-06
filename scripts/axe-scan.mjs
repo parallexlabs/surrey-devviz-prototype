@@ -44,6 +44,7 @@ async function main() {
   const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
   const page = await context.newPage();
   await page.addInitScript(() => {
+    window.__surreyTest = true;
     window.__cameraInstant = true;
   });
   await page.goto('http://localhost:4173/demos/surrey/', { waitUntil: 'networkidle' });

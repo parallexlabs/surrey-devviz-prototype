@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   haversineDistanceMeters,
   featureCentroid,
+  featureReferencePoint,
   nearestStation,
   formatDistance,
   createProximityRingsGeoJSON,
@@ -61,8 +62,55 @@ describe('nearestStation', () => {
   });
 });
 
+describe('featureReferencePoint', () => {
+  it('prefers the assignment point over the vertex average', () => {
+    const feature = {
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]],
+      },
+      properties: { assign_lon: 10, assign_lat: 20 },
+    };
+    expect(featureReferencePoint(feature)).toEqual([10, 20]);
+    const station = {
+      geometry: { type: 'Point', coordinates: [10, 20] },
+      properties: { name: 'Assigned' },
+    };
+    const other = {
+      geometry: { type: 'Point', coordinates: [0.5, 0.5] },
+      properties: { name: 'Centroid' },
+    };
+    expect(nearestStation(feature, [other, station]).station.properties.name).toBe('Assigned');
+  });
+
+  it('falls back to the vertex average when the assignment point is absent', () => {
+    const feature = {
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]],
+      },
+      properties: {},
+    };
+    expect(featureReferencePoint(feature)).toEqual(featureCentroid(feature));
+  });
+
+  it('keeps a vertex when only the longitude repeats', () => {
+    const feature = {
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[[0, 0], [2, 0], [2, 2], [0, 1]]],
+      },
+    };
+    const centroid = featureCentroid(feature);
+    expect(centroid[0]).toBeCloseTo(1, 5);
+    expect(centroid[1]).toBeCloseTo(0.75, 5);
+  });
+});
+
 describe('formatDistance', () => {
-  it('formats metres', () => {
+  it('rounds metres to 10 m', () => {
+    expect(formatDistance(187)).toBe('190 m');
+    expect(formatDistance(184)).toBe('180 m');
     expect(formatDistance(450)).toBe('450 m');
   });
 

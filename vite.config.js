@@ -4,6 +4,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { defineConfig } from 'vite';
 import { renderStaticSummary } from './src/staticSummary.js';
+import { absoluteOgImage } from './src/siteMeta.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
 
@@ -69,9 +70,7 @@ export default defineConfig({
           );
         }
         if (!next.includes('property="og:title"')) {
-          const image = siteBuild
-            ? 'https://parallexlabs.ca/demos/surrey/og.png'
-            : `${base}og.png`;
+          const image = absoluteOgImage(base);
           const tags = [
             '<meta property="og:type" content="website">',
             `<meta property="og:title" content="${PAGE_TITLE}">`,
