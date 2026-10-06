@@ -93,6 +93,63 @@ class AtomicWriteTests(unittest.TestCase):
             self.assertEqual(path.read_text(encoding="utf-8"), "previous\n")
 
 
+class OsmPropertyFilterTests(unittest.TestCase):
+    def test_amenities_allowlist_drops_contact_fields(self):
+        feature = {
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [0, 0]},
+            "properties": {
+                "osm_id": 1,
+                "osm_type": "node",
+                "name": "Library",
+                "amenity": "library",
+                "phone": "555-0100",
+                "email": "info@example.test",
+                "website": "https://example.test",
+            },
+        }
+        fetch_data.filter_feature_properties(feature, fetch_data.AMENITIES_PROPERTY_ALLOWLIST)
+        self.assertEqual(
+            feature["properties"],
+            {
+                "osm_id": 1,
+                "osm_type": "node",
+                "name": "Library",
+                "amenity": "library",
+            },
+        )
+
+    def test_skytrain_allowlist_keeps_station_fields(self):
+        feature = {
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [0, 0]},
+            "properties": {
+                "osm_id": 2,
+                "osm_type": "node",
+                "name": "Surrey Central",
+                "railway": "station",
+                "station": "subway",
+                "subway": "yes",
+                "public_transport": "station",
+                "addr:street": "Central Avenue",
+                "phone": "555-0100",
+            },
+        }
+        fetch_data.filter_feature_properties(feature, fetch_data.SKYTRAIN_PROPERTY_ALLOWLIST)
+        self.assertEqual(
+            feature["properties"],
+            {
+                "osm_id": 2,
+                "osm_type": "node",
+                "name": "Surrey Central",
+                "railway": "station",
+                "station": "subway",
+                "subway": "yes",
+                "public_transport": "station",
+            },
+        )
+
+
 class OsmConversionTests(unittest.TestCase):
     def test_node_way_and_park_relation(self):
         osm = {

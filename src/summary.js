@@ -42,17 +42,36 @@ export function computeAtAGlance(projects, stations) {
 }
 
 export function formatAtAGlance(summary) {
-  const lines = [
-    `Showcase projects: ${summary.showcaseCount}`,
-    ...summary.areaLines,
-    `Within ${summary.skytrainRadiusM} m of SkyTrain: ${summary.nearSkyTrain}`,
+  const items = [
+    { kind: 'text', text: `Showcase projects: ${summary.showcaseCount}` },
+    ...summary.areaLines.map((text) => ({ kind: 'text', text })),
+    { kind: 'text', text: `Within ${summary.skytrainRadiusM} m of SkyTrain: ${summary.nearSkyTrain}` },
   ];
   if (summary.tallestStoreys > 0) {
-    lines.push(
-      `Tallest stated storeys: ${summary.tallestStoreys}${summary.tallestProject ? ` (${summary.tallestProject})` : ''}`,
-    );
+    items.push({
+      kind: 'tallest',
+      storeys: summary.tallestStoreys,
+      project: summary.tallestProject,
+    });
   } else {
-    lines.push('Tallest stated storeys: none stated in showcase descriptions');
+    items.push({ kind: 'text', text: 'Tallest: none stated in showcase descriptions' });
   }
-  return lines;
+  return items;
+}
+
+export function atAGlanceItemText(item) {
+  if (item.kind === 'tallest') {
+    return `Tallest: ${item.storeys} storeys${item.project ? ` (${item.project})` : ''}`;
+  }
+  return item.text;
+}
+
+export function renderAtAGlanceItemHtml(item, escapeHtml) {
+  if (item.kind === 'tallest') {
+    const project = item.project
+      ? ` <span class="summary-project">${escapeHtml(item.project)}</span>`
+      : '';
+    return `Tallest: ${escapeHtml(String(item.storeys))} storeys${project}`;
+  }
+  return escapeHtml(item.text);
 }

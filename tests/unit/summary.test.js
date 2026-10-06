@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { computeAtAGlance, formatAtAGlance } from '../../src/summary.js';
+import {
+  computeAtAGlance,
+  formatAtAGlance,
+  atAGlanceItemText,
+  renderAtAGlanceItemHtml,
+} from '../../src/summary.js';
 
 const stations = [
   {
@@ -54,9 +59,19 @@ describe('computeAtAGlance', () => {
 
 describe('formatAtAGlance', () => {
   it('returns readable summary lines', () => {
-    const lines = formatAtAGlance(computeAtAGlance(projects, stations));
+    const items = formatAtAGlance(computeAtAGlance(projects, stations));
+    const lines = items.map(atAGlanceItemText);
     expect(lines.some((l) => l.includes('Showcase projects: 2'))).toBe(true);
     expect(lines.some((l) => l.includes('800 m'))).toBe(true);
-    expect(lines.some((l) => l.includes('43'))).toBe(true);
+    expect(lines.some((l) => l.includes('Tallest: 43 storeys (A-1)'))).toBe(true);
+  });
+
+  it('wraps the tallest project number in a nowrap span', () => {
+    const items = formatAtAGlance(computeAtAGlance(projects, stations));
+    const tallest = items.find((item) => item.kind === 'tallest');
+    const html = renderAtAGlanceItemHtml(tallest, (value) => String(value));
+    expect(html).toContain('Tallest: 43 storeys');
+    expect(html).toContain('<span class="summary-project">A-1</span>');
+    expect(html).not.toContain('innerHTML');
   });
 });

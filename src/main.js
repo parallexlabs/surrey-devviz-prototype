@@ -24,7 +24,11 @@ import {
 import { isShowcaseProject, underReviewLabel } from './showcase.js';
 import { HEIGHT_LEGEND } from './heights.js';
 import { projectTitle, projectSubtitle } from './titles.js';
-import { computeAtAGlance, formatAtAGlance } from './summary.js';
+import {
+  computeAtAGlance,
+  formatAtAGlance,
+  renderAtAGlanceItemHtml,
+} from './summary.js';
 import { buildTourSteps } from './tour.js';
 import { projectPanelModel, safeHttpUrl } from './detail.js';
 import { BUILD_ID } from './buildInfo.js';
@@ -697,7 +701,7 @@ async function initMap() {
 
   map.addControl(new maplibregl.NavigationControl(), 'top-left');
   const mapAttribution =
-    '<a href="https://maplibre.org/" target="_blank" rel="noopener noreferrer">MapLibre<span class="visually-hidden"> (opens in a new tab)</span></a> | OpenFreeMap | OpenMapTiles | <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">(c) OpenStreetMap contributors<span class="visually-hidden"> (opens in a new tab)</span></a>';
+    '<a href="https://maplibre.org/" target="_blank" rel="noopener noreferrer">MapLibre<span class="visually-hidden"> (opens in a new tab)</span></a> | OpenFreeMap | OpenMapTiles | <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors<span class="visually-hidden"> (opens in a new tab)</span></a>';
   map.addControl(
     new maplibregl.AttributionControl({
       compact: false,
@@ -1402,7 +1406,7 @@ function renderAtAGlance() {
   );
   const el = document.getElementById('at-a-glance');
   el.innerHTML = `<h2>At a glance</h2><ul>${formatAtAGlance(atAGlance)
-    .map((line) => `<li>${escapeHtml(line)}</li>`)
+    .map((item) => `<li>${renderAtAGlanceItemHtml(item, escapeHtml)}</li>`)
     .join('')}</ul>`;
 }
 
@@ -1435,7 +1439,7 @@ function renderAbout() {
         licence = `${escapeHtml(SURREY_LICENCE_TEXT)} ${externalAnchor(SURREY_LICENCE_URL, 'Licence details')}`;
       } else if (String(s.licence || '').includes('OpenStreetMap')) {
         const odbl = safeHttpUrl(s.licence_url) || 'https://opendatacommons.org/licenses/odbl/1-0/';
-        licence = `${externalAnchor('https://www.openstreetmap.org/copyright', '(c) OpenStreetMap contributors')} (${externalAnchor(odbl, 'ODbL')})`;
+        licence = `${externalAnchor('https://www.openstreetmap.org/copyright', '© OpenStreetMap contributors')} (${externalAnchor(odbl, 'ODbL')})`;
       } else {
         licence = escapeHtml(s.licence ?? '');
       }
@@ -1450,7 +1454,7 @@ function renderAbout() {
     <p>This page does not use tracking or cookies. Third-party requests are limited to OpenFreeMap (style, tiles, fonts).</p>
     <p><a href="${escapeAttr(readmeHref)}">OpenStreetMap data files and licence</a></p>
     <p>${escapeHtml(ACCESSIBILITY_STATEMENT)}</p>
-    <p>Data: City of Surrey Open Data and ${externalAnchor('https://www.openstreetmap.org/copyright', '(c) OpenStreetMap contributors')}. Estimated heights use stated storeys x 3.2 m. Illustrative heights are used when no storey count could be read. ${escapeHtml(EXTRUSION_NAME)}.</p>
+    <p>Data: City of Surrey Open Data and ${externalAnchor('https://www.openstreetmap.org/copyright', '© OpenStreetMap contributors')}. Estimated heights use stated storeys x 3.2 m. Illustrative heights are used when no storey count could be read. ${escapeHtml(EXTRUSION_NAME)}.</p>
     <h3>Data sources (${escapeHtml(projectsFc.features.length)} applications)</h3>
     ${licenceHtml}
   `;

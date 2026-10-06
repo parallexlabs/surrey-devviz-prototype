@@ -4,8 +4,10 @@
 
 These files are extracted from OpenStreetMap:
 
-- `skytrain.geojson` — SkyTrain lines and stations used by the map
-- `amenities.geojson` — civic facilities, libraries, recreation, and parks
+- `skytrain.geojson`: SkyTrain lines and stations used by the map
+- `amenities.geojson`: civic facilities, libraries, recreation, and parks
+
+Only the fields the map uses are kept; contact details are removed.
 
 Attribution: © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright).
 

@@ -45,6 +45,7 @@ describe('pass 10b labels', () => {
       expect(notice).toContain(file);
     }
     expect(notice).toContain('https://www.openstreetmap.org/copyright');
+    expect(notice).toContain('Only the fields the map uses are kept; contact details are removed.');
     expect(notice).toContain('Open Government License – City of Surrey');
   });
 });

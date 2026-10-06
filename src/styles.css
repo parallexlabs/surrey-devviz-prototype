@@ -412,6 +412,10 @@ header.app-header .subtitle,
   padding-left: 1.1rem;
 }
 
+.summary-project {
+  white-space: nowrap;
+}
+
 .toggle-row {
   display: flex;
   align-items: center;

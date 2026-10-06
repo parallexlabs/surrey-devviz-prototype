@@ -174,6 +174,18 @@ test.describe('Surrey DevViz prototype', () => {
     await expect(page.locator('#at-a-glance')).toContainText(/SkyTrain/i);
   });
 
+  test('tallest summary keeps the project number in a nowrap span', async ({ page }) => {
+    for (const width of [1280, 375]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('./');
+      await page.waitForSelector('#at-a-glance', { timeout: 15000 });
+      const tallest = page.locator('#at-a-glance .summary-project');
+      await expect(tallest).toHaveCount(1);
+      await expect(tallest).toHaveText('21-0313-00');
+      await expect(page.locator('#at-a-glance')).toContainText('Tallest: 67 storeys');
+    }
+  });
+
   test('guided tour opens with keyboard controls', async ({ page }) => {
     await page.goto('./');
     await page.waitForSelector('#start-showcase', { timeout: 15000 });
@@ -389,13 +401,13 @@ test.describe('Surrey DevViz prototype', () => {
     expect(text).toContain('OpenFreeMap');
     expect(text).toContain('OpenMapTiles');
     expect(text).toContain(
-      'MapLibre | OpenFreeMap | OpenMapTiles | (c) OpenStreetMap contributors',
+      'MapLibre | OpenFreeMap | OpenMapTiles | © OpenStreetMap contributors',
     );
-    await expect(page.getByRole('link', { name: '(c) OpenStreetMap contributors' })).toBeVisible();
+    await expect(page.getByRole('link', { name: '© OpenStreetMap contributors' })).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(400);
     expect(await visibleCredits()).toContain(
-      'MapLibre | OpenFreeMap | OpenMapTiles | (c) OpenStreetMap contributors',
+      'MapLibre | OpenFreeMap | OpenMapTiles | © OpenStreetMap contributors',
     );
   });
 

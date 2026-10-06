@@ -2,7 +2,7 @@ import { NON_AFFILIATION, PAGE_TITLE, PURPOSE_LINE } from './copy.js';
 import { getSkyTrainStations, pilotAreaLabel } from './data.js';
 import { safeHttpUrl } from './detail.js';
 import { isShowcaseProject } from './showcase.js';
-import { computeAtAGlance, formatAtAGlance } from './summary.js';
+import { computeAtAGlance, formatAtAGlance, atAGlanceItemText } from './summary.js';
 import { projectPanelTitle } from './titles.js';
 
 function escapeHtml(value) {
@@ -29,7 +29,7 @@ export function renderStaticSummary({ projects, skytrain, civic }) {
     });
   const places = civic?.places || [];
 
-  const countItems = counts.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
+  const countItems = counts.map((item) => `<li>${escapeHtml(atAGlanceItemText(item))}</li>`).join('');
   const placeItems = places
     .map((place) => {
       const label = place.source_label || place.name;

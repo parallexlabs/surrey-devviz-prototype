@@ -25,6 +25,29 @@ SURREY_LICENCE = (
 OSM_LICENCE = "© OpenStreetMap contributors (ODbL)"
 OSM_LICENCE_URL = "https://opendatacommons.org/licenses/odbl/1-0/"
 
+AMENITIES_PROPERTY_ALLOWLIST = frozenset(
+    {
+        "osm_id",
+        "osm_type",
+        "name",
+        "amenity",
+        "leisure",
+        "representative_point",
+    }
+)
+
+SKYTRAIN_PROPERTY_ALLOWLIST = frozenset(
+    {
+        "osm_id",
+        "osm_type",
+        "name",
+        "railway",
+        "station",
+        "subway",
+        "public_transport",
+    }
+)
+
 SOURCES = []
 
 ARCGIS_BASE = "https://services5.arcgis.com/YRpe0VKTJytZSSIB/arcgis/rest/services"
@@ -436,6 +459,18 @@ def relation_geometry(element):
     return {"type": "MultiPolygon", "coordinates": polygons}
 
 
+def filter_feature_properties(feature, allowlist):
+    props = feature.get("properties") or {}
+    feature["properties"] = {key: value for key, value in props.items() if key in allowlist}
+    return feature
+
+
+def filter_geojson_properties(fc, allowlist):
+    for feature in fc.get("features", []):
+        filter_feature_properties(feature, allowlist)
+    return fc
+
+
 def area_marker(geometry, props):
     point = shape(geometry).representative_point()
     marker_props = dict(props)
@@ -689,7 +724,7 @@ def main():
     """
     try:
         transit_osm = overpass_query(overpass_transit)
-        transit_fc = osm_to_geojson(transit_osm)
+        transit_fc = filter_geojson_properties(osm_to_geojson(transit_osm), SKYTRAIN_PROPERTY_ALLOWLIST)
         write_geojson(
             "skytrain",
             transit_fc,
@@ -721,7 +756,10 @@ def main():
     """
     try:
         amenities_osm = overpass_query(overpass_amenities)
-        amenities_fc = osm_to_geojson(amenities_osm, area_markers=True)
+        amenities_fc = filter_geojson_properties(
+            osm_to_geojson(amenities_osm, area_markers=True),
+            AMENITIES_PROPERTY_ALLOWLIST,
+        )
         write_geojson(
             "amenities",
             amenities_fc,
@@ -742,5 +780,25 @@ def main():
     print(f"  Buildings: {len(buildings_fc['features'])}")
 
 
+def minimize_committed_osm_layers():
+    for name, allowlist in (
+        ("skytrain", SKYTRAIN_PROPERTY_ALLOWLIST),
+        ("amenities", AMENITIES_PROPERTY_ALLOWLIST),
+    ):
+        path = DATA_DIR / f"{name}.geojson"
+        fc = json.loads(path.read_text(encoding="utf-8"))
+        feature_count = len(fc.get("features", []))
+        filter_geojson_properties(fc, allowlist)
+        if len(fc.get("features", [])) != feature_count:
+            raise SystemExit(f"{name}.geojson feature count changed during minimisation")
+        write_json_atomic(path, fc)
+        print(f"  minimised {path.name}: {feature_count} features")
+
+
 if __name__ == "__main__":
-    main()
+    import sys
+
+    if len(sys.argv) > 1 and sys.argv[1] == "--minimize-osm":
+        minimize_committed_osm_layers()
+    else:
+        main()
