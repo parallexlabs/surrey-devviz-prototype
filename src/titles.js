@@ -1,15 +1,36 @@
 import { normalizeDescription } from './showcase.js';
 
+const TITLE_LIMIT = 72;
+
+function clauseAfter(text, phrase) {
+  const index = text.toLowerCase().lastIndexOf(phrase.toLowerCase());
+  if (index === -1) return '';
+  const rest = text.slice(index + phrase.length).trim();
+  return rest.split(/[;.]/)[0].trim();
+}
+
+function asSentence(text) {
+  const trimmed = text.replace(/[.\s]+$/g, '').trim();
+  if (!trimmed) return '';
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
+function shorten(text) {
+  if (text.length <= TITLE_LIMIT) return text;
+  return `${text.slice(0, TITLE_LIMIT - 1).trim()}…`;
+}
+
 /**
- * Build a short title from the application's own description words.
- * Uses the first clause before a semicolon or sentence break; never invents a name.
+ * Title from the application's own words.
+ * Prefers the clause after "to permit the development of", then "to permit".
  */
 export function projectTitle(description) {
   const text = normalizeDescription(description);
   if (!text) return 'Application';
-  const clause = text.split(/[;]/)[0].trim();
-  const shortened = clause.length > 72 ? `${clause.slice(0, 71).trim()}…` : clause;
-  return shortened || 'Application';
+  const permitted =
+    clauseAfter(text, 'to permit the development of') || clauseAfter(text, 'to permit');
+  const clause = permitted || text.split(/[;.]/)[0].trim();
+  return shorten(asSentence(clause)) || 'Application';
 }
 
 export function projectSubtitle(properties) {
