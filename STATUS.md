@@ -3,6 +3,24 @@
 **Built:** 2026-10-06 (local only, not deployed)  
 **Prototype by:** ParalleX Labs Inc. for City of Surrey RFP 1220-030-2026-063
 
+## Pass 6: first impression and the /demos/surrey/ build
+
+The overview no longer paints the amenity layer. Those green dots appear from zoom 13 upward. Below that, showcase projects are circle markers coloured by area, and the three pilot areas are dark blue outlines with one label each: City Centre, Fleetwood Town Centre, and Campbell Heights. The labels are points at the centre of each area, so a name is not repeated across tiles, and they drop off once the map is zoomed in.
+
+`npm run build` reads Vite `base` from `VITE_BASE` (default `/`) and writes `dist/`. `npm run build:site` writes `dist-site/` with base `/demos/surrey/` and adds `<meta name="robots" content="noindex">`. The root build does not have that tag. Data loads and `#view=` / `#project=` links stay on the sub-path. Nothing has been pushed or deployed.
+
+### What the evidence PNGs show
+
+Opened after the recorder passed. Desktop frames are 1600×1000. The phone frame is 390×844. The walkthrough is about 30 seconds and 2.8 MB.
+
+- `01-overview.png`: Surrey from the Fraser in the north to White Rock in the south. Three dark blue boxes are labelled once each: City Centre (north, dense blue markers), Fleetwood Town Centre (small box, two green markers), and Campbell Heights (large southern box, two orange markers). Readable names include Guildford, Newton, Cloverdale, White Rock, Annacis Island, Barnston Island, and Highways 1, 10, 15, 17, 91, and 99. The amenity carpet is gone. The Start here bar and the footer "Public data retrieved 6 October 2026" are on screen.
+- `02-city-centre-3d.png`: blue massing around the SkyTrain line, with a few green amenity dots. Readable names include King George Boulevard, University Drive, Old Yale Road, 102 Avenue, 104 Avenue, 132 Street, Surrey Central, and Holland Park. The pilot name is not repeated over the towers.
+- `03-project-panel.png`: application 21-0313-00. A yellow tower stands on the map. The panel reads "Estimated from 67 storeys stated in the application", status "Conditional Approval", "Source: City of Surrey Development Applications", and "Nearest SkyTrain: Surrey Central" at 187 m, with the 400 m and 800 m walk note. Readable names include King George Boulevard and 102 Avenue.
+- `04-transit-overlay.png`: the same City Centre massing with SkyTrain, FTDA, City Centre Plan, and amenities checked. Green amenity dots sit with the blue blocks. Readable names include King George Boulevard, University Drive, Old Yale Road, 102 Avenue, 104 Avenue, Surrey Central, and Holland Park.
+- `05-fleetwood.png`: the Fleetwood outline as a dark blue quadrilateral over the grid, with green massing inside and green amenity dots around it. Readable names include Fraser Highway, 80 Avenue, 82 Avenue, 84 Avenue, 88 Avenue, 152 Street, 156 Street, and 160 Street.
+- `06-campbell-heights.png`: one "Campbell Heights" label inside a dark blue outline. Two orange markers sit near 192 Street and Highway 99. Readable names include Highway 10, Highway 99, 32 Avenue, 40 Avenue, Colebrook Road, the Nicomekl, Sullivan, Morgan Creek, and South Surrey.
+- `07-mobile.png`: 390 px width. Start here wraps to two columns (Explore projects, Transit and amenities, 3D City Centre, Guided tour, Dismiss). A project panel is open over the map and shows Conditional Approval and "Source: City of Surrey Development Applications". Readable names include King George Boulevard and 112 Avenue.
+
 ## Pass 5: evaluator path
 
 Pass 4 checks still run after the camera is idle. This pass adds a first-load path and makes the panel say what is measured and what is drawn.
@@ -141,19 +159,20 @@ This is a working static web prototype using **real public data** from City of S
 
 | Test | Result | Path |
 |------|--------|------|
-| Unit tests (`npm test`) | 42/42 passed | `tests/unit/` |
-| E2E tests (`npm run test:e2e`) | 17/17 passed | `tests/e2e/app.spec.js` |
-| axe-core scan | 0 serious/critical violations | `evidence/axe-report.json` |
-| Production build | Success | `dist/` |
+| Unit tests (`npm test`) | 44/44 passed | `tests/unit/` |
+| E2E tests (`npm run test:e2e`) | 19/19 passed against `http://localhost:4173/demos/surrey/` | `tests/e2e/app.spec.js` |
+| axe-core scan | 0 violations | `evidence/axe-report.json` |
+| Root build | Success, no robots meta | `dist/` |
+| Site build | Success, base `/demos/surrey/`, `noindex` | `dist-site/` |
 | Recording assertions | All seven screenshots + walkthrough | `npm run record` |
 
-E2E coverage waits for `moveend` and `idle`, then checks the visible map: Surrey Central on screen with at least 10 rendered massing features, Fleetwood and Campbell Heights massing with the center inside each pilot bbox, and the overview framing Surrey without the north side of the Fraser filling the frame. The project panel must be on screen, at least 250px wide, and show "Nearest SkyTrain" with proximity rings rendered. New checks cover the Start here bar, the rings sentence, hash restore for a view and for application 21-0313-00, and 44 px targets on a 390 px screen.
+E2E waits for `moveend` and `idle`, then checks the visible map: Surrey Central on screen with at least 10 rendered massing features, Fleetwood and Campbell Heights massing with the center inside each pilot bbox, and the overview framing Surrey without the north side of the Fraser filling the frame. At the overview, rendered amenity features stay under 30 and the three pilot labels are City Centre, Fleetwood Town Centre, and Campbell Heights. The project panel must be on screen, at least 250px wide, and show "Nearest SkyTrain" with proximity rings rendered. Hash restore keeps `#view=fleetwood` and `#project=21-0313-00` on `/demos/surrey/`. The site page has `<meta name="robots" content="noindex">`. Other checks cover the Start here bar, the rings sentence, and 44 px targets on a 390 px screen.
 
 ## Evidence
 
 | Asset | Path |
 |-------|------|
-| Walkthrough video (~31 s, 3 MB) | `evidence/walkthrough.mp4` |
+| Walkthrough video (~30 s, 2.8 MB) | `evidence/walkthrough.mp4` |
 | Screenshot 1: Overview | `evidence/01-overview.png` |
 | Screenshot 2: City Centre 3D | `evidence/02-city-centre-3d.png` |
 | Screenshot 3: Project panel + proximity | `evidence/03-project-panel.png` |
@@ -176,13 +195,17 @@ npm run fetch-data
 # Development server
 npm run dev
 
-# Production build
+# Production build (base /, or set VITE_BASE)
 npm run build
 npm run serve:dist   # http://localhost:4173
 
-# Tests
+# Publish build for https://parallexlabs.ca/demos/surrey/
+npm run build:site   # dist-site/, robots noindex
+npm run serve:site   # http://localhost:4173/demos/surrey/
+
+# Tests (e2e and axe expect build:site first)
 npm test             # unit tests
-npm run test:e2e     # Playwright against dist
+npm run test:e2e     # Playwright against /demos/surrey/
 npm run test:axe     # accessibility scan
 
 # Record walkthrough + screenshots
