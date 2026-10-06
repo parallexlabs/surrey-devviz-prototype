@@ -7,3 +7,7 @@ evidence/
 test-results/
 playwright-report/
 .vite/
+.cursor-logs/
+BRIEF*.md
+STATUS.md
+PUBLISH_REPORT.md
