@@ -170,7 +170,7 @@ test.describe('Surrey DevViz prototype', () => {
   test('at a glance summary is shown', async ({ page }) => {
     await page.goto('./');
     await page.waitForSelector('#at-a-glance', { timeout: 15000 });
-    await expect(page.locator('#at-a-glance')).toContainText(/Showcase projects/i);
+    await expect(page.locator('#at-a-glance')).toContainText(/Selected applications, all areas: \d+/i);
     await expect(page.locator('#at-a-glance')).toContainText(/SkyTrain/i);
   });
 
@@ -238,7 +238,7 @@ test.describe('Surrey DevViz prototype', () => {
     await waitForCameraSettled(page);
     await expect(page.locator('h1')).toHaveText("Explore Surrey's development and destinations");
     await expect(page.locator('.what-this-is')).toHaveText(
-      'Approved development projects alongside civic investments, transit and places to visit in three Surrey pilot areas.',
+      'Selected development applications alongside civic investments, transit and places to visit in three Surrey pilot areas. Status is shown as the City publishes it; conditional approval is not a building permit.',
     );
     await expect(page.getByRole('button', { name: 'Start the showcase' })).toHaveCount(1);
     await expect(page.locator('.quiet-line')).toContainText(

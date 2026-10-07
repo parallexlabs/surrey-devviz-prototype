@@ -43,7 +43,7 @@ export function computeAtAGlance(projects, stations) {
 
 export function formatAtAGlance(summary) {
   const items = [
-    { kind: 'text', text: `Showcase projects: ${summary.showcaseCount}` },
+    { kind: 'text', text: `Selected applications, all areas: ${summary.showcaseCount}` },
     ...summary.areaLines.map((text) => ({ kind: 'text', text })),
     { kind: 'text', text: `Within ${summary.skytrainRadiusM} m of SkyTrain: ${summary.nearSkyTrain}` },
   ];

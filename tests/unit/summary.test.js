@@ -58,12 +58,29 @@ describe('computeAtAGlance', () => {
 });
 
 describe('formatAtAGlance', () => {
-  it('returns readable summary lines', () => {
+  it('returns readable summary lines with the all-area total first', () => {
     const items = formatAtAGlance(computeAtAGlance(projects, stations));
     const lines = items.map(atAGlanceItemText);
-    expect(lines.some((l) => l.includes('Showcase projects: 2'))).toBe(true);
+    expect(lines[0]).toBe('Selected applications, all areas: 2');
     expect(lines.some((l) => l.includes('800 m'))).toBe(true);
     expect(lines.some((l) => l.includes('Tallest: 43 storeys (A-1)'))).toBe(true);
+  });
+
+  it('uses the existing selection count without changing its scope', () => {
+    const summary = computeAtAGlance(projects, stations);
+    const items = formatAtAGlance(summary);
+    expect(items[0]).toEqual({
+      kind: 'text',
+      text: `Selected applications, all areas: ${summary.showcaseCount}`,
+    });
+    expect(summary.showcaseCount).toBe(
+      Object.values(summary.perArea).reduce((total, count) => total + count, 0),
+    );
+  });
+
+  it('renders the all-area label for an empty selection', () => {
+    const items = formatAtAGlance(computeAtAGlance([], stations));
+    expect(atAGlanceItemText(items[0])).toBe('Selected applications, all areas: 0');
   });
 
   it('wraps the tallest project number in a nowrap span', () => {

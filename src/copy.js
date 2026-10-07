@@ -1,7 +1,7 @@
-export const PAGE_TITLE = "Explore Surrey's development and destinations";
+export const PAGE_TITLE = 'Explore Surrey\'s development and destinations';
 
 export const PURPOSE_LINE =
-  'Approved development projects alongside civic investments, transit and places to visit in three Surrey pilot areas.';
+  'Selected development applications alongside civic investments, transit and places to visit in three Surrey pilot areas. Status is shown as the City publishes it; conditional approval is not a building permit.';
 
 export const NON_AFFILIATION =
   'Independent public-data prototype by ParalleX Labs Inc. Not affiliated with or endorsed by the City of Surrey.';
@@ -25,12 +25,12 @@ export const CONTEXT_LINE =
   'Development context only. Property availability and investment terms are not shown.';
 
 export const AREA_COUNT_NOTE =
-  "A public-data selection, not a complete inventory or the City's final showcase list.";
+  'A public-data selection, not a complete inventory or the City\'s final showcase list.';
 
 export const SHOWCASE_CLOSING =
   'Explore a project, open its City source, or share this view.';
 
-export const APPLICATION_LINK_LABEL = "View the City's application record";
+export const APPLICATION_LINK_LABEL = 'View the City\'s application record';
 
 export const ACCESSIBILITY_STATEMENT =
   'Tested with axe-core: 0 automatically detected violations in the tested states, plus manual keyboard testing. Automated tools cannot confirm full WCAG conformance. The project list gives access to every project and place without the map.';

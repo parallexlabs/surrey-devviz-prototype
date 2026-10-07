@@ -153,7 +153,7 @@ describe('static summary', () => {
     const html = renderStaticSummary({ projects, skytrain, civic });
     expect(html).toContain("Explore Surrey's development and destinations");
     expect(html).toContain(
-      'Approved development projects alongside civic investments, transit and places to visit in three Surrey pilot areas.',
+      'Selected development applications alongside civic investments, transit and places to visit in three Surrey pilot areas. Status is shown as the City publishes it; conditional approval is not a building permit.',
     );
     expect(html).toContain('Independent public-data prototype by ParalleX Labs Inc. Not affiliated with or endorsed by the City of Surrey.');
     const places = html.match(/<h2>Civic investments and destinations<\/h2>\s*<ul>([\s\S]*?)<\/ul>/);
