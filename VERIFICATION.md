@@ -1,6 +1,6 @@
 # Verification
 
-Checked 6 October 2026. The unit, Python and end-to-end tests, the axe scan, the Content Security Policy check and the dependency audit below were run on the published source at commit `aa507ff`, which fixes the City application-record links and keeps the area card in step with the area filter. The load profile was measured on commit `9157223`; later commits do not change what loads.
+Checked 6 October 2026. The unit, Python and end-to-end tests, the axe scan, the Content Security Policy check and the dependency audit below were run on the published source at commit `0d25e01`. That commit keeps project titles whole and describes application status as the City publishes it; the commit before it, `aa507ff`, fixed the City application-record links and keeps the area card in step with the area filter. The load profile was measured on commit `9157223`; later commits do not change what loads.
 
 **Live URL:** https://parallexlabs.ca/demos/surrey/
 
@@ -10,7 +10,7 @@ The live URL was rebuilt from this source and redeployed on 6 October 2026.
 
 | Check | Result |
 | --- | --- |
-| Unit tests (`vitest`) | 82 passed |
+| Unit tests (`vitest`) | 134 passed |
 | Python data tests | 20 passed |
 | End-to-end tests (Playwright) | 48 passed. Another local server held the default port 4173, so the suite ran on port 4199; `noscript.spec.js` names port 4173 directly, so it was run again on a copy pointed at port 4199 and passed. |
 | axe | 0 violations across overview, list, panel, tour, methodology, and phone. 8 incomplete checks (2, 2, 2, 0, 0, 2). Report: `evidence/axe-report.json` |
@@ -18,7 +18,11 @@ The live URL was rebuilt from this source and redeployed on 6 October 2026.
 | `npm audit --omit=dev --audit-level=high` | 0 vulnerabilities |
 | Content Security Policy | 0 violations on the built site with a project panel open, the area filter used, the showcase started and the methodology drawer open |
 
-The site build wrote `dist-site/index.html` (14,116 bytes, gzip 3,593), `assets/index-CzBRVwsy.js` (1,104,847 bytes, gzip 302,622), `assets/index-DmTqAM18.css` (97,870 bytes, gzip 13,694), and `assets/maplibre-gl-worker-D4J6YbLY.js` (508,956 bytes, gzip 147,318).
+The site build wrote `dist-site/index.html` (14,730 bytes, gzip 3,757), `assets/index-DeCPLrM3.js` (1,105,698 bytes, gzip 302,961), `assets/index-DmTqAM18.css` (97,870 bytes, gzip 13,694), and `assets/maplibre-gl-worker-D4J6YbLY.js` (508,956 bytes, gzip 147,318).
+
+## Project titles and status wording
+
+Project titles are written from each application's own description. They now end only at a real sentence boundary, never inside a number such as 5.5 FAR or 5 695.33 sq. m, and list titles are shortened at a word boundary. Tests use nine real City descriptions that had produced cut titles. The page subtitle reads: "Selected development applications alongside civic investments, transit and places to visit in three Surrey pilot areas. Status is shown as the City publishes it; conditional approval is not a building permit." The first at-a-glance line reads "Selected applications, all areas: 49".
 
 ## City application-record links
 
