@@ -171,17 +171,30 @@ async function main() {
     () => assertPilotMassingView(page, pilotAreas.campbell_heights.bbox, '06-campbell-heights'),
   );
 
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('http://localhost:4173/demos/surrey/', { waitUntil: 'networkidle' });
-  await page.waitForSelector('.project-list li button', { timeout: 15000 });
-  await selectCityCentreProject(page);
-  await assertProjectPanel(page, '07-mobile');
-  const mobilePath = join(MEDIA, '07-mobile.jpg');
-  if (existsSync(mobilePath)) unlinkSync(mobilePath);
-  await page.screenshot({ path: mobilePath, fullPage: true });
-  await page.screenshot({ path: join(FRAMES, '07-mobile.png'), fullPage: true });
-
   await context.close();
+
+  const mobileContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+  });
+  const mobilePage = await mobileContext.newPage();
+  await mobilePage.addInitScript(() => {
+    window.__surreyTest = true;
+    window.__cameraInstant = true;
+  });
+  await mobilePage.goto('http://localhost:4173/demos/surrey/', { waitUntil: 'networkidle' });
+  await mobilePage.waitForSelector('.project-list li button', { timeout: 15000 });
+  await mobilePage.waitForFunction(() => window.__overlaysReady === true, { timeout: 20000 });
+  await selectCityCentreProject(mobilePage);
+  await assertProjectPanel(mobilePage, '07-mobile');
+  await mobilePage.waitForTimeout(600);
+  const mobilePath = join(MEDIA, '07-mobile.jpg');
+  const mobileFramePath = join(FRAMES, '07-mobile.png');
+  if (existsSync(mobilePath)) unlinkSync(mobilePath);
+  if (existsSync(mobileFramePath)) unlinkSync(mobileFramePath);
+  await mobilePage.screenshot({ path: mobilePath, fullPage: false });
+  await mobilePage.screenshot({ path: mobileFramePath, fullPage: false });
+  await mobileContext.close();
   await browser.close();
   server.kill();
 }
