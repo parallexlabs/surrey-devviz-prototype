@@ -11,8 +11,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FFMPEG = Path("/Users/studio/.homebrew/bin/ffmpeg")
-EXIFTOOL = Path("/opt/homebrew/bin/exiftool")
+FFMPEG = Path(os.environ.get("FFMPEG") or shutil.which("ffmpeg") or "ffmpeg")
+EXIFTOOL = Path(os.environ.get("EXIFTOOL") or shutil.which("exiftool") or "exiftool")
 MEDIA = ROOT / "docs" / "media"
 SHOWCASE = ROOT / "showcase-media"
 FRAMES = SHOWCASE / "frames"
