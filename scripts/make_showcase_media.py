@@ -11,7 +11,39 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FFMPEG = Path(os.environ.get("FFMPEG") or shutil.which("ffmpeg") or "ffmpeg")
+
+
+def _ffmpeg_has_subtitles(ffmpeg: Path) -> bool:
+    try:
+        proc = subprocess.run(
+            [str(ffmpeg), "-filters"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return False
+    return " subtitles " in proc.stdout
+
+
+def _resolve_ffmpeg() -> Path:
+    candidates: list[Path] = []
+    if os.environ.get("FFMPEG"):
+        candidates.append(Path(os.environ["FFMPEG"]))
+    path_env = os.environ.get("PATH", "")
+    for directory in path_env.split(os.pathsep):
+        if not directory:
+            continue
+        ff = Path(directory) / "ffmpeg"
+        if ff.is_file() and ff not in candidates:
+            candidates.append(ff)
+    for ff in candidates:
+        if _ffmpeg_has_subtitles(ff):
+            return ff
+    raise SystemExit("Need ffmpeg with libass (subtitles filter) on PATH, or set FFMPEG")
+
+
+FFMPEG = _resolve_ffmpeg()
 EXIFTOOL = Path(os.environ.get("EXIFTOOL") or shutil.which("exiftool") or "exiftool")
 MEDIA = ROOT / "docs" / "media"
 SHOWCASE = ROOT / "showcase-media"
@@ -28,7 +60,6 @@ CAPTIONS = [
 ]
 
 FRAME_ORDER = [
-    "hero.png",
     "01-overview.png",
     "02-city-centre-3d.png",
     "03-project-panel.png",
@@ -39,6 +70,7 @@ FRAME_ORDER = [
 ]
 
 FRAME_HOLD = 5
+FRAME_HOLD_LAST = 6
 
 
 def run(cmd: list[str], **kwargs) -> None:
@@ -146,20 +178,37 @@ def write_vtt(path: Path) -> None:
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def normalize_mobile_video_frame() -> None:
+    from PIL import Image
+
+    mobile = FRAMES / "07-mobile.png"
+    if not mobile.exists():
+        return
+    img = Image.open(mobile).convert("RGB")
+    canvas = Image.new("RGB", (1600, 1000), (28, 28, 28))
+    scale = min(1600 / img.width, 1000 / img.height)
+    resized = img.resize(
+        (int(img.width * scale), int(img.height * scale)),
+        Image.Resampling.LANCZOS,
+    )
+    x = (1600 - resized.width) // 2
+    y = (1000 - resized.height) // 2
+    canvas.paste(resized, (x, y))
+    canvas.save(mobile)
+
+
 def build_slideshow_video() -> None:
     SHOWCASE.mkdir(parents=True, exist_ok=True)
+    normalize_mobile_video_frame()
     list_path = SHOWCASE / "frames.txt"
     lines = []
-    for name in FRAME_ORDER:
+    for index, name in enumerate(FRAME_ORDER):
         frame = FRAMES / name
         if not frame.exists():
             raise SystemExit(f"Missing frame {name}")
+        hold = FRAME_HOLD_LAST if index == len(FRAME_ORDER) - 1 else FRAME_HOLD
         lines.append(f"file '{frame.resolve()}'")
-        lines.append(f"duration {FRAME_HOLD}")
-    last = FRAMES / FRAME_ORDER[-1]
-    if not last.exists():
-        last = MEDIA / FRAME_ORDER[-1]
-    lines.append(f"file '{last.resolve()}'")
+        lines.append(f"duration {hold}")
     list_path.write_text("\n".join(lines), encoding="utf-8")
 
     raw_mp4 = SHOWCASE / "demo-raw.mp4"
@@ -174,7 +223,7 @@ def build_slideshow_video() -> None:
             "-i",
             str(list_path),
             "-vf",
-            "scale=1280:800:force_original_aspect_ratio=decrease,pad=1280:800:(ow-iw)/2:(oh-ih)/2",
+            "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=25",
             "-c:v",
             "libx264",
             "-preset",
@@ -183,6 +232,10 @@ def build_slideshow_video() -> None:
             "28",
             "-pix_fmt",
             "yuv420p",
+            "-vsync",
+            "cfr",
+            "-r",
+            "25",
             "-movflags",
             "+faststart",
             "-map_metadata",
@@ -194,7 +247,10 @@ def build_slideshow_video() -> None:
     vtt = MEDIA / "demo.en.vtt"
     write_vtt(vtt)
     captioned = SHOWCASE / "demo.mp4"
-    vtt_escaped = str(vtt).replace(":", "\\:")
+    burn_vtt = SHOWCASE / "demo-captions.vtt"
+    shutil.copy2(vtt, burn_vtt)
+    sub_rel = burn_vtt.relative_to(ROOT).as_posix()
+    sub_style = "FontSize=22,PrimaryColour=&Hffffff,OutlineColour=&H000000,Outline=2"
     run(
         [
             str(FFMPEG),
@@ -202,7 +258,7 @@ def build_slideshow_video() -> None:
             "-i",
             str(raw_mp4),
             "-vf",
-            f"subtitles={vtt_escaped}:force_style='FontSize=22,PrimaryColour=&Hffffff,OutlineColour=&H000000,Outline=2'",
+            f"subtitles={sub_rel}:force_style='{sub_style}'",
             "-c:v",
             "libx264",
             "-preset",
