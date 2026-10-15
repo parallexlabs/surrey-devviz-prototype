@@ -4,6 +4,8 @@ A public-data prototype by ParalleX Labs Inc. that maps development applications
 
 ![Overview of the demo: the map of the three City of Surrey pilot areas (City Centre, Fleetwood Town Centre and Campbell Heights) with application markers and outlines, SkyTrain and plan overlays, the at-a-glance counts and the project list.](docs/media/hero.png)
 
+How it was made: its code and documentation were written with AI coding assistants and reviewed, tested and revised by Amir Daneshpajouh.
+
 **Try it live:** https://parallexlabs.ca/demos/surrey/ (no install). A copy for GitHub Pages is in `docs/`; it will be at https://parallexlabs.github.io/surrey-devviz-prototype/ when Pages is enabled (see [docs/PAGES_TODO.md](docs/PAGES_TODO.md)).
 
 [![Screen recording preview of the Surrey development map demo](docs/media/demo-preview.gif)](https://parallexlabs.github.io/surrey-devviz-prototype/media/demo.mp4)
