@@ -48,4 +48,4 @@ OpenMapTiles asks that the credit link to https://openmaptiles.org/ and that sta
 
 ## Screenshots and preview image
 
-`docs/01-overview.jpg`, `docs/03-project-panel.jpg` and `docs/07-mobile.jpg` (and `public/og.png` where it shows the map) are rendered from this map. They contain basemap tiles (© OpenMapTiles, © OpenStreetMap contributors, served by OpenFreeMap) and City of Surrey open data layers. Keep this notice, or an equivalent caption, next to any copy of them.
+`docs/media/01-overview.jpg`, `docs/media/03-project-panel.jpg`, `docs/media/07-mobile.jpg` and related showcase images under `docs/media/` (and `public/og.png` where it shows the map) are rendered from this map. They contain basemap tiles (© OpenMapTiles, © OpenStreetMap contributors, served by OpenFreeMap) and City of Surrey open data layers. Keep this notice, or an equivalent caption, next to any copy of them.

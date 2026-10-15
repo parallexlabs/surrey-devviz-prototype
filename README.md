@@ -1,6 +1,77 @@
 # Surrey Development Visualization (prototype)
 
-A public-data prototype that maps development applications in three City of Surrey pilot areas: **City Centre**, **Fleetwood Town Centre**, and **Campbell Heights**.
+A public-data prototype by ParalleX Labs Inc. that maps development applications in three City of Surrey areas in 2D (3D in City Centre), with transit and amenity context and a link to each City source. It is not affiliated with or endorsed by the City. For residents, community groups and planning staff who want to see development applications in context.
+
+![Overview map of three City of Surrey pilot areas, City Centre, Fleetwood Town Centre and Campbell Heights, with development application areas shown as schematic blocks, not proposed building footprints.](docs/media/hero.png)
+
+**Try it live:** https://parallexlabs.ca/demos/surrey/ (no install). A copy for GitHub Pages is in `docs/`; it will be at https://parallexlabs.github.io/surrey-devviz-prototype/ when Pages is enabled (see [docs/PAGES_TODO.md](docs/PAGES_TODO.md)).
+
+[![Screen recording preview of the Surrey development map demo](docs/media/demo-preview.gif)](https://parallexlabs.github.io/surrey-devviz-prototype/media/demo.mp4)
+
+*Demo walkthrough (captions burned in; WebVTT: [docs/media/demo.en.vtt](docs/media/demo.en.vtt)).*
+
+![Bar chart of approved applications in the bundled snapshot by pilot area](docs/media/chart-pilot-areas.png)
+
+![Bar chart of application status counts in the bundled City snapshot](docs/media/chart-status.png)
+
+![Overview of the three pilot areas on the map](docs/media/01-overview.jpg)
+
+![City Centre with schematic 3D massing and overlays](docs/media/02-city-centre-3d.jpg)
+
+![Project detail panel with schematic height from storeys](docs/media/03-project-panel.jpg)
+
+![City Centre with transit, amenities and plan layers](docs/media/04-transit-overlay.jpg)
+
+![Fleetwood Town Centre pilot view](docs/media/05-fleetwood.jpg)
+
+![Campbell Heights pilot view](docs/media/06-campbell-heights.jpg)
+
+![Phone layout with project list and detail panel](docs/media/07-mobile.jpg)
+
+*Screenshots on this page: basemap © OpenMapTiles, © OpenStreetMap contributors, served by OpenFreeMap. Plan areas and application outlines contain information licensed under the Open Government License – City of Surrey.*
+
+## How it works
+
+1. Download public City of Surrey layers and OpenStreetMap transit and amenity features.
+2. Select showcase projects with a rule based on the City's application status.
+3. Estimate schematic heights: storeys times 3.2 m where stated, otherwise an illustrative height.
+4. Build the static site: map, project list, filters and methodology panel.
+5. Open the demo and choose **Start the showcase**.
+6. Open a project card and follow its City source link.
+7. Open **Data and methodology**.
+8. Copy a share link to the selected preset view and project.
+
+## Architecture
+
+![Workflow from public layers to static MapLibre site](docs/media/architecture.png)
+
+- **Data**: frozen GeoJSON and JSON under `public/data/`, refreshed with `scripts/fetch_data.py`.
+- **Logic**: showcase rules, height estimation and proximity in `src/`.
+- **Client**: Vite and MapLibre GL; static output only, no backend.
+- **Deploy**: `npm run build:site` for https://parallexlabs.ca/demos/surrey/; `npm run build:pages` for GitHub Pages under `docs/`.
+
+## Design choices
+
+- **Rule-based showcase**: the default list uses inclusion and exclusion rules on application text and approved statuses, not manual curation.
+- **Schematic blocks**: application areas are extruded for illustration; they are not proposed footprints or approved massing.
+- **Deferred footprints**: building footprints load only when toggled, so the first view stays smaller.
+- **Share links**: the URL hash keeps the preset view and selected project, not manual camera moves.
+
+## Why it matters
+
+Development applications in three Surrey areas are on one map, each linked to its City source.
+
+## Showcase media
+
+Regenerate hero images, charts and the demo recording:
+
+```bash
+npm ci
+npm run build:site
+python3 scripts/make_showcase_media.py
+```
+
+Requires Playwright Chromium (`npx playwright install chromium`), Python 3 with matplotlib, ffmpeg and exiftool on the paths used in the script.
 
 Built by [ParalleX Labs Inc.](https://parallexlabs.ca/) This prototype is **not affiliated with or endorsed by the City of Surrey** and is not a regulatory record.
 
@@ -21,12 +92,6 @@ Built by [ParalleX Labs Inc.](https://parallexlabs.ca/) This prototype is **not 
 
 The checks that were run, and what was not done, are in [VERIFICATION.md](VERIFICATION.md).
 
-**Live demo:** https://parallexlabs.ca/demos/surrey/
-
-![Overview of the three pilot areas](docs/01-overview.jpg)
-
-*Screenshots on this page: basemap © OpenMapTiles, © OpenStreetMap contributors, served by OpenFreeMap. Plan areas and application outlines contain information licensed under the Open Government License – City of Surrey.*
-
 ## Features
 
 - **2D and 3D map**: pan, zoom, and tilt; switch to a pitched 3D view in City Centre.
@@ -37,10 +102,6 @@ The checks that were run, and what was not done, are in [VERIFICATION.md](VERIFI
 - **Shareable links**: the URL hash encodes the selected preset view and the selected project only. Manual camera position, zoom, pitch, and bearing are not preserved.
 - **Accessibility**: skip link, visible focus, keyboard navigation, ARIA labels, and axe-tested states (see `npm run test:axe` locally).
 - **Phone layout**: single-column layout with scrollable content, 16 px body text, and touch targets sized for mobile use.
-
-![Project detail panel](docs/03-project-panel.jpg)
-
-![Phone layout](docs/07-mobile.jpg)
 
 ## Data sources and licences
 
@@ -103,6 +164,12 @@ Site build for `/demos/surrey/` deployment (writes `dist-site/`):
 
 ```bash
 npm run build:site
+```
+
+GitHub Pages build (writes `dist-pages/`, synced into `docs/` by `scripts/make_showcase_media.py`):
+
+```bash
+npm run build:pages
 ```
 
 ## Load profile

@@ -20,7 +20,12 @@ describe('pass 10e licensing and data honesty', () => {
     expect(readme).not.toContain('Start here dismissal');
     const licence = read('DATA_LICENSE.md');
     expect(licence).toContain('## Screenshots and preview image');
-    for (const name of ['docs/01-overview.jpg', 'docs/03-project-panel.jpg', 'docs/07-mobile.jpg', 'public/og.png']) {
+    for (const name of [
+      'docs/media/01-overview.jpg',
+      'docs/media/03-project-panel.jpg',
+      'docs/media/07-mobile.jpg',
+      'public/og.png',
+    ]) {
       expect(licence).toContain(name);
     }
     const notes = read('public/data/README.md');

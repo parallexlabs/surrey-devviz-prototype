@@ -2,6 +2,7 @@ node_modules/
 .venv/
 dist/
 dist-site/
+dist-pages/
 evidence/
 .DS_Store
 *.log
