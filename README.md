@@ -2,7 +2,7 @@
 
 A public-data prototype by ParalleX Labs Inc. that maps development applications in three City of Surrey areas in 2D (3D in City Centre), with transit and amenity context and a link to each City source. It is not affiliated with or endorsed by the City. For residents, community groups and planning staff who want to see development applications in context.
 
-![Overview map of three City of Surrey pilot areas, City Centre, Fleetwood Town Centre and Campbell Heights, with development application areas shown as schematic blocks, not proposed building footprints.](docs/media/hero.png)
+![Overview of the demo: the map of the three City of Surrey pilot areas (City Centre, Fleetwood Town Centre and Campbell Heights) with application markers and outlines, SkyTrain and plan overlays, the at-a-glance counts and the project list.](docs/media/hero.png)
 
 **Try it live:** https://parallexlabs.ca/demos/surrey/ (no install). A copy for GitHub Pages is in `docs/`; it will be at https://parallexlabs.github.io/surrey-devviz-prototype/ when Pages is enabled (see [docs/PAGES_TODO.md](docs/PAGES_TODO.md)).
 
