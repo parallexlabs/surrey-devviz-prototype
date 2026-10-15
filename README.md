@@ -6,7 +6,7 @@ A public-data prototype by ParalleX Labs Inc. that maps development applications
 
 How it was made: its code and documentation were written with AI coding assistants and reviewed, tested and revised by Amir Daneshpajouh.
 
-**Try it live:** https://parallexlabs.ca/demos/surrey/ (no install). A copy for GitHub Pages is in `docs/`; it will be at https://parallexlabs.github.io/surrey-devviz-prototype/ when Pages is enabled (see [docs/PAGES_TODO.md](docs/PAGES_TODO.md)).
+**Try it live:** https://parallexlabs.ca/demos/surrey/ (no install), or the GitHub Pages copy at https://parallexlabs.github.io/surrey-devviz-prototype/.
 
 [![Screen recording preview of the Surrey development map demo](docs/media/demo-preview.gif)](https://parallexlabs.github.io/surrey-devviz-prototype/media/demo.mp4)
 
