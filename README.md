@@ -28,7 +28,7 @@ How it was made: its code and documentation were written with AI coding assistan
 
 ![Campbell Heights pilot view](docs/media/06-campbell-heights.jpg)
 
-![Phone layout with project list and detail panel](docs/media/07-mobile.jpg)
+![Phone layout with the map and a project's detail panel](docs/media/07-mobile.jpg)
 
 *Screenshots on this page: basemap © OpenMapTiles, © OpenStreetMap contributors, served by OpenFreeMap. Plan areas and application outlines contain information licensed under the Open Government License – City of Surrey.*
 

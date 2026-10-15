@@ -56,7 +56,7 @@ CAPTIONS = [
     (15, 20, "Transit, amenities and plan context around City Centre."),
     (20, 25, "Fleetwood Town Centre pilot area."),
     (25, 30, "Campbell Heights pilot area."),
-    (30, 36, "Phone layout with project list and detail panel."),
+    (30, 36, "Phone layout with the map and a project's detail panel."),
 ]
 
 FRAME_ORDER = [
