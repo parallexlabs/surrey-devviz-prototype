@@ -1,83 +1,23 @@
 # Surrey Development Visualization (prototype)
 
-A public-data prototype by ParalleX Labs Inc. that maps development applications in three City of Surrey areas in 2D (3D in City Centre), with transit and amenity context and a link to each City source. It is not affiliated with or endorsed by the City. For residents, community groups and planning staff who want to see development applications in context.
+What is in development in three City of Surrey areas? In the City's open Development Applications layer as retrieved on 2026-10-06, 119 applications in City Centre, Campbell Heights and Fleetwood Town Centre were in initial review, under review or conditionally approved: 89 in City Centre, 27 in Campbell Heights and 3 in Fleetwood. 81 had conditional approval, 13 were under review and 25 were in initial review; none had final approval in that snapshot. This prototype by ParalleX Labs Inc. maps them in 2D (3D in City Centre), with transit and amenity context and a link to each City record; the default view shows a rule-based selection, and the All applications option shows all 119. Counts: [public/data/development_projects.geojson](public/data/development_projects.geojson) and [public/data/SOURCES.json](public/data/SOURCES.json).
+
+It is not affiliated with or endorsed by the City of Surrey and is not a regulatory record. Conditional approval is the City's application status, not a building permit.
 
 ![Overview of the demo: the map of the three City of Surrey pilot areas (City Centre, Fleetwood Town Centre and Campbell Heights) with application markers and outlines, SkyTrain and plan overlays, the at-a-glance counts and the project list.](docs/media/hero.png)
 
-How it was made: its code and documentation were written with AI coding assistants under the direction of Amir Daneshpajouh, and checked by their tests and an AI-assisted release check before publication.
+The demo runs at https://parallexlabs.ca/demos/surrey/ (no install), or the GitHub Pages copy at https://parallexlabs.github.io/surrey-devviz-prototype/.
 
-**Try it live:** https://parallexlabs.ca/demos/surrey/ (no install), or the GitHub Pages copy at https://parallexlabs.github.io/surrey-devviz-prototype/.
-
-[![Screen recording preview of the Surrey development map demo](docs/media/demo-preview.gif)](https://parallexlabs.github.io/surrey-devviz-prototype/media/demo.mp4)
-
-*Demo walkthrough (captions burned in; WebVTT: [docs/media/demo.en.vtt](docs/media/demo.en.vtt)).*
-
-![Bar chart of approved applications in the bundled snapshot by pilot area](docs/media/chart-pilot-areas.png)
-
-![Bar chart of application status counts in the bundled City snapshot](docs/media/chart-status.png)
-
-![Overview of the three pilot areas on the map](docs/media/01-overview.jpg)
-
-![City Centre with schematic 3D massing and overlays](docs/media/02-city-centre-3d.jpg)
-
-![Project detail panel with schematic height from storeys](docs/media/03-project-panel.jpg)
-
-![City Centre with transit, amenities and plan layers](docs/media/04-transit-overlay.jpg)
-
-![Fleetwood Town Centre pilot view](docs/media/05-fleetwood.jpg)
-
-![Campbell Heights pilot view](docs/media/06-campbell-heights.jpg)
-
-![Phone layout with the map and a project's detail panel](docs/media/07-mobile.jpg)
-
-*Screenshots on this page: basemap © OpenMapTiles, © OpenStreetMap contributors, served by OpenFreeMap. Plan areas and application outlines contain information licensed under the Open Government License – City of Surrey.*
-
-## How it works
+## Method
 
 1. Download public City of Surrey layers and OpenStreetMap transit and amenity features.
 2. Select showcase projects with a rule based on the City's application status.
 3. Estimate schematic heights: storeys times 3.2 m where stated, otherwise an illustrative height.
 4. Build the static site: map, project list, filters and methodology panel.
-5. Open the demo and choose **Start the showcase**.
-6. Open a project card and follow its City source link.
-7. Open **Data and methodology**.
-8. Copy a share link to the selected preset view and project.
 
-## Architecture
+Application areas are extruded uniformly for illustration; they are not proposed footprints or approved massing. The default list comes from rules on application text and status, not manual curation.
 
-![Workflow from public layers to static MapLibre site](docs/media/architecture.png)
-
-- **Data**: frozen GeoJSON and JSON under `public/data/`, refreshed with `scripts/fetch_data.py`.
-- **Logic**: showcase rules, height estimation and proximity in `src/`.
-- **Client**: Vite and MapLibre GL; static output only, no backend.
-- **Deploy**: `npm run build:site` for https://parallexlabs.ca/demos/surrey/; `npm run build:pages` for GitHub Pages under `docs/`.
-
-## Design choices
-
-- **Rule-based showcase**: the default list uses inclusion and exclusion rules on application text and approved statuses, not manual curation.
-- **Schematic blocks**: application areas are extruded for illustration; they are not proposed footprints or approved massing.
-- **Deferred footprints**: building footprints load only when toggled, so the first view stays smaller.
-- **Share links**: the URL hash keeps the preset view and selected project, not manual camera moves.
-
-## Why it matters
-
-Development applications in three Surrey areas are on one map, each linked to its City source.
-
-## Showcase media
-
-Regenerate hero images, charts and the demo recording:
-
-```bash
-npm ci
-npm run build:site
-python3 scripts/make_showcase_media.py
-```
-
-Requires Playwright Chromium (`npx playwright install chromium`), Python 3 with matplotlib, ffmpeg and exiftool on the paths used in the script.
-
-Built by [ParalleX Labs Inc.](https://parallexlabs.ca/) This prototype is **not affiliated with or endorsed by the City of Surrey** and is not a regulatory record.
-
-## Review it in one minute
+## Review the demo
 
 1. Open the demo: https://parallexlabs.ca/demos/surrey/
 2. Choose **Start the showcase**.
@@ -96,14 +36,14 @@ The checks that were run, and what was not done, are in [VERIFICATION.md](VERIFI
 
 ## Features
 
-- **2D and 3D map**: pan, zoom, and tilt; switch to a pitched 3D view in City Centre.
-- **Schematic application-area extrusion**: when an application description states a storey count, height is estimated as storeys × 3.2 m. When no storey count can be read, an illustrative height is used. The parser does not read heights stated in metres. Application areas are extruded uniformly for illustration. They are not proposed building footprints or approved architectural massing. See *Data and methodology* in the app and `src/heights.js`.
-- **Project list and filters**: browse and filter applications without relying on the map; keyboard-accessible list with status and pilot-area filters.
-- **Transit and amenity context**: SkyTrain lines and stations, Frequent Transit Development Areas, civic amenities, and optional City Centre Plan overlay.
-- **Guided tour**: step-through introduction to the map, overlays, and project panel.
-- **Shareable links**: the URL hash encodes the selected preset view and the selected project only. Manual camera position, zoom, pitch, and bearing are not preserved.
-- **Accessibility**: skip link, visible focus, keyboard navigation, ARIA labels, and axe-tested states (see `npm run test:axe` locally).
-- **Phone layout**: single-column layout with scrollable content, 16 px body text, and touch targets sized for mobile use.
+- 2D and 3D map: pan, zoom, and tilt; switch to a pitched 3D view in City Centre.
+- Schematic application-area extrusion: when an application description states a storey count, height is estimated as storeys × 3.2 m. When no storey count can be read, an illustrative height is used. The parser does not read heights stated in metres. Application areas are extruded uniformly for illustration. They are not proposed building footprints or approved architectural massing. See *Data and methodology* in the app and `src/heights.js`.
+- Project list and filters: browse and filter applications without relying on the map; keyboard-accessible list with status and pilot-area filters.
+- Transit and amenity context: SkyTrain lines and stations, Frequent Transit Development Areas, civic amenities, and optional City Centre Plan overlay.
+- Guided tour: step-through introduction to the map, overlays, and project panel.
+- Shareable links: the URL hash encodes the selected preset view and the selected project only. Manual camera position, zoom, pitch, and bearing are not preserved.
+- Accessibility: skip link, visible focus, keyboard navigation, ARIA labels, and axe-tested states (see `npm run test:axe` locally).
+- Phone layout: single-column layout with scrollable content, 16 px body text, and touch targets sized for mobile use.
 
 ## Data sources and licences
 
@@ -198,15 +138,17 @@ After building footprints load only when that layer is first checked:
 
 `building_footprints.geojson` was not requested in the second run.
 
-## Open by design
+## Data handling and privacy
 
-- **Public inputs only**: no API keys, no proprietary datasets, and no backend beyond static files and public tile endpoints.
-- **Documented method**: showcase inclusion rules, height estimation, and limitations are stated in the in-app *Data and methodology* panel (`src/methodology.js`).
-- **Reproducible data**: `scripts/fetch_data.py` downloads the same public sources recorded in `SOURCES.json`.
-- **No tracking**: the page does not use analytics, cookies, localStorage, or sessionStorage. Third-party requests are limited to OpenFreeMap (style, tiles, fonts).
-- **Open source**: application code is licensed under [Apache-2.0](LICENSE). Data files remain under their respective open licences (see [DATA_LICENSE.md](DATA_LICENSE.md)).
-- **Security**: see [SECURITY.md](SECURITY.md).
+- Public inputs only: no API keys, no proprietary datasets, and no backend beyond static files and public tile endpoints.
+- Documented method: showcase inclusion rules, height estimation, and limitations are stated in the in-app *Data and methodology* panel (`src/methodology.js`).
+- Reproducible data: `scripts/fetch_data.py` downloads the same public sources recorded in `SOURCES.json`.
+- No tracking: the page does not use analytics, cookies, localStorage, or sessionStorage. Third-party requests are limited to OpenFreeMap (style, tiles, fonts).
+- Open source: application code is licensed under [Apache-2.0](LICENSE). Data files remain under their respective open licences (see [DATA_LICENSE.md](DATA_LICENSE.md)).
+- Security: see [SECURITY.md](SECURITY.md).
 
 ## Licence
 
 Copyright 2026 ParalleX Labs Inc. Code is licensed under the Apache License 2.0. See [LICENSE](LICENSE).
+
+Its code and documentation were written with AI coding assistants under the direction of Amir Daneshpajouh, and checked by their tests and an AI-assisted release check before publication.
